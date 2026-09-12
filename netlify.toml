@@ -1,0 +1,53 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"
+  # Default zip-it-and-ship-it tracer mis-packages @privy-io/server-auth's
+  # @hpke/* deps (conditional dual ESM/CJS exports) — it copies
+  # @hpke/common/script/mod.js into the deploy zip but drops the relative
+  # ./src/errors.js it requires, crashing contacts.js at cold start with
+  # "Cannot find module './src/errors.js'". esbuild fully bundles instead
+  # of copying node_modules, avoiding the mis-trace.
+  node_bundler = "esbuild"
+
+# Job de reconciliación de wallets — ver
+# docs/superpowers/specs/2026-08-08-background-reconciliation-design.md.
+[functions."reconcile-wallets"]
+  schedule = "*/15 * * * *"
+
+# Reemplaza al proxy /rpc de Vite (solo existe en dev) por una function
+# que hace de puente al RPC real, igual que vite.config.js.
+[[redirects]]
+  from = "/rpc"
+  to = "/.netlify/functions/rpc"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/eth-rpc"
+  to = "/.netlify/functions/eth-rpc"
+  status = 200
+  force = true
+
+# API de la agenda de contactos (Postgres vía Aiven, ver netlify/functions/contacts.js).
+[[redirects]]
+  from = "/contacts"
+  to = "/.netlify/functions/contacts"
+  status = 200
+  force = true
+
+# API del historial de transacciones (Postgres vía Aiven, ver netlify/functions/transactions.js).
+[[redirects]]
+  from = "/transactions"
+  to = "/.netlify/functions/transactions"
+  status = 200
+  force = true
+
+# SPA: cualquier otra ruta sirve index.html (no hay react-router, pero
+# evita 404 si alguien entra directo a una URL que no sea la raíz).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

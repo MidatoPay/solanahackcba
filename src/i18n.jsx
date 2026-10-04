@@ -113,6 +113,10 @@ const translations = {
       invoiceLink: (factura) => `Invoice ${factura} · view ↗`,
       creatingTitle: "Creating your account…",
       creatingBody: "This takes a few seconds the first time.",
+      walletUnavailableTitle: "Wallet connection unavailable",
+      walletUnavailableBody: "Your address is linked, but this browser session has not connected the wallet needed to sign. Reload the page and sign in again with the same account if it persists.",
+      walletUnavailable: "This session has not loaded your Solana wallet for signing. Reload the page and try again.",
+      retryWallet: "Reload wallet connection",
     },
     charge: {
       title: "Collect",
@@ -462,6 +466,10 @@ const translations = {
       invoiceLink: (factura) => `Factura ${factura} · ver ↗`,
       creatingTitle: "Creando tu cuenta…",
       creatingBody: "Esto tarda unos segundos la primera vez.",
+      walletUnavailableTitle: "No se pudo conectar la wallet",
+      walletUnavailableBody: "Tu dirección está vinculada, pero esta sesión no conectó la wallet necesaria para firmar. Recargá la página y, si sigue pasando, iniciá sesión otra vez con la misma cuenta.",
+      walletUnavailable: "Esta sesión no cargó tu wallet Solana para firmar. Recargá la página y volvé a intentar.",
+      retryWallet: "Recargar conexión de wallet",
     },
     charge: {
       title: "Cobrar",

@@ -3862,16 +3862,46 @@ function AppInner() {
 
   const wallet = useMemo(() => {
     if (!wallets?.length) return null;
+    if (linkedSolanaAddress) {
+      return wallets.find((w) => w.address === linkedSolanaAddress) || null;
+    }
     return (
-      wallets.find((w) => w.address && w.address === linkedSolanaAddress) ||
       wallets.find((w) => w.standardWallet?.name === "Privy") ||
       wallets.find((w) => /privy/i.test(String(w.standardWallet?.name || ""))) ||
       wallets.find((w) => w.walletClientType === "privy") ||
-      wallets[0]
+      null
     );
   }, [wallets, linkedSolanaAddress]);
 
-  const address = wallet?.address || linkedSolanaAddress || "";
+  const address = linkedSolanaAddress || wallet?.address || "";
+  const walletDebug = {
+    privyReady: ready,
+    authenticated,
+    solanaWalletsReady,
+    linkedSolanaAddress: short(linkedSolanaAddress),
+    selectedAddress: short(wallet?.address),
+    addressMatch: Boolean(wallet && wallet.address === address),
+    signerAvailable: typeof signAndSendTransaction === "function",
+    connectedWallets: (wallets || []).map((w) => ({
+      address: short(w.address),
+      name: w.standardWallet?.name || "",
+      clientType: w.walletClientType || "",
+    })),
+    linkedWallets: (user?.linkedAccounts || [])
+      .filter((account) => account.type === "wallet")
+      .map((account) => ({
+        address: short(account.address),
+        chainType: account.chainType || account.chain_type || "",
+        clientType: account.walletClientType || "",
+      })),
+  };
+  const walletDebugSignature = JSON.stringify(walletDebug);
+  const lastWalletDebugSignature = useRef("");
+  useEffect(() => {
+    if (lastWalletDebugSignature.current === walletDebugSignature) return;
+    lastWalletDebugSignature.current = walletDebugSignature;
+    console.info("[MidatoPay wallet] Estado de Privy", walletDebug);
+  }, [walletDebugSignature]);
   const treasuryAddress = useMemo(() => getTreasuryAddress(), []);
   const email = user?.email?.address || user?.phone?.number || "";
   const nombre = email ? email.split("@")[0].split(/[.\-_]/)[0].replace(/^./, (c) => c.toUpperCase()) : "👋";
@@ -3903,14 +3933,15 @@ function AppInner() {
     const timer = setTimeout(() => {
       if (walletCreateAttempted.current) return;
       walletCreateAttempted.current = true;
+      console.info("[MidatoPay wallet] Privy no informó una dirección; intentando crear la wallet inicial");
       createWallet({ createAdditional: false })
         .catch((err) => {
           const msg = String(err?.message || err);
-          if (/already has an embedded wallet/i.test(msg)) return;
-          return createWallet({ createAdditional: true });
-        })
-        .catch((err) => {
-          const msg = String(err?.message || err);
+          console.error("[MidatoPay wallet] Falló la creación de wallet inicial", {
+            name: err?.name,
+            code: err?.code,
+            message: msg,
+          });
           if (/already has an embedded wallet/i.test(msg)) return;
           setWalletError(msg);
         });
@@ -4056,12 +4087,9 @@ function AppInner() {
   const sendPayment = useCallback(
     async (parsed) => {
       const kind = parsed.kind || "voice";
-      const signingWallet =
-        wallet ||
-        wallets.find((w) => w.address === address) ||
-        wallets[0];
-      if (!signingWallet) {
-        throw new Error("Wallet Solana no lista para firmar. Esperá un segundo y reintentá.");
+      if (!wallet || wallet.address !== address) {
+        console.error("[MidatoPay wallet] Firma de pago bloqueada: falta wallet conectada con la dirección vinculada", walletDebug);
+        throw new Error(t("home.walletUnavailable"));
       }
       const memo = armarMemo({
         inv: parsed.factura,
@@ -4070,11 +4098,22 @@ function AppInner() {
         amt: parsed.amount,
         kind,
       });
-      const tx = await sendUsdc(signingWallet, signAndSendTransaction, {
-        to: parsed.contact.addr,
-        usdc: parsed.usdc,
-        memo,
-      });
+      let tx;
+      try {
+        tx = await sendUsdc(wallet, signAndSendTransaction, {
+          to: parsed.contact.addr,
+          usdc: parsed.usdc,
+          memo,
+        });
+      } catch (err) {
+        console.error("[MidatoPay wallet] Falló el envío USDC", {
+          name: err?.name,
+          code: err?.code,
+          message: String(err?.message || err),
+          walletAddress: short(wallet.address),
+        });
+        throw err;
+      }
       const effectiveFxRate = parsed.fxRate || fxRate;
       const ars = parsed.usdc * effectiveFxRate;
       pushTx({
@@ -4104,7 +4143,7 @@ function AppInner() {
         ts: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
       };
     },
-    [wallet, wallets, address, signAndSendTransaction, refreshBalances, pushTx, locale, fxRate]
+    [wallet, address, signAndSendTransaction, refreshBalances, pushTx, locale, fxRate, t, walletDebugSignature]
   );
 
   const handleChargeDetected = useCallback(
@@ -4157,19 +4196,27 @@ function AppInner() {
 
   const handleConvertUsdcArs = useCallback(
     async (usdcAmount) => {
-      const signingWallet =
-        wallet ||
-        wallets.find((w) => w.address === address) ||
-        wallets[0];
-      if (!signingWallet) {
-        throw new Error("Wallet Solana no lista para firmar. Esperá un segundo y reintentá.");
+      if (!wallet || wallet.address !== address) {
+        console.error("[MidatoPay wallet] Conversión bloqueada: falta wallet conectada con la dirección vinculada", walletDebug);
+        throw new Error(t("home.walletUnavailable"));
       }
-      const result = await runConvertUsdcToArs({
-        wallet: signingWallet,
-        signAndSendTransaction,
-        usdcAmount,
-        userUsdcBalance: balance,
-      });
+      let result;
+      try {
+        result = await runConvertUsdcToArs({
+          wallet,
+          signAndSendTransaction,
+          usdcAmount,
+          userUsdcBalance: balance,
+        });
+      } catch (err) {
+        console.error("[MidatoPay wallet] Falló la conversión USDC a ARS", {
+          name: err?.name,
+          code: err?.code,
+          message: String(err?.message || err),
+          walletAddress: short(wallet.address),
+        });
+        throw err;
+      }
       applyArsDelta(result.arsDelta);
       pushTx({
         hash: result.hash,
@@ -4187,7 +4234,7 @@ function AppInner() {
       await refreshBalances();
       return result;
     },
-    [wallet, wallets, address, signAndSendTransaction, balance, applyArsDelta, pushTx, refreshBalances, t]
+    [wallet, address, signAndSendTransaction, balance, applyArsDelta, pushTx, refreshBalances, t, walletDebugSignature]
   );
 
   const navTabs = [
@@ -4229,7 +4276,18 @@ function AppInner() {
   const shell = (children, { pad = true, nav = true } = {}) => (
     <div className="mp-stage">
       <div className={`mp-device${nav ? "" : " mp-no-nav"}`}>
-        <div className="mp-scroll" style={{ padding: pad ? "22px 18px 24px" : 0 }}>{children}</div>
+        <div className="mp-scroll" style={{ padding: pad ? "22px 18px 24px" : 0 }}>
+          {ready && authenticated && address && solanaWalletsReady && !wallet && (
+            <Card style={{ marginBottom: 16, padding: 16, border: `1px solid ${C.red}` }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.red }}>{t("home.walletUnavailableTitle")}</div>
+              <div style={{ fontSize: 13, color: C.mut, marginTop: 6, lineHeight: 1.5 }}>{t("home.walletUnavailableBody")}</div>
+              <button onClick={() => window.location.reload()} style={{ ...btnOutline, marginTop: 12 }}>
+                {t("home.retryWallet")}
+              </button>
+            </Card>
+          )}
+          {children}
+        </div>
 
         {voiceOpen && (
           <div className="mp-voice-sheet">

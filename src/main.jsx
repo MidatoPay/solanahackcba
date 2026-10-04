@@ -83,7 +83,10 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             theme: "dark",
             accentColor: "#4D9FFF",
             logo: undefined,
-            walletList: [],
+            // Privy 3.36.1 waits for a connector initialization event before
+            // marking embedded wallets ready. Phantom supplies that event even
+            // when it is not installed, through Privy's null connector.
+            walletList: ["phantom"],
             walletChainType: "solana-only",
           },
           embeddedWallets: {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets as useEvmWallets } from "@privy-io/react-auth";
 import { useWallets, useCreateWallet, useSignAndSendTransaction } from "@privy-io/react-auth/solana";
 import { isAddress } from "@solana/kit";
 import QRCode from "qrcode";
@@ -3786,6 +3786,7 @@ function ContactsScreen({ contacts, onAdd, onUpdate, onRemove }) {
 function AppInner() {
   const { t, locale } = useLanguage();
   const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy();
+  const { ready: walletInfrastructureReady } = useEvmWallets();
   const { ready: solanaWalletsReady, wallets } = useWallets();
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const [tab, setTab] = useState("home");
@@ -3877,6 +3878,7 @@ function AppInner() {
   const walletDebug = {
     privyReady: ready,
     authenticated,
+    walletInfrastructureReady,
     solanaWalletsReady,
     linkedSolanaAddress: short(linkedSolanaAddress),
     selectedAddress: short(wallet?.address),

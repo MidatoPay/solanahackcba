@@ -15,6 +15,16 @@ import { RPC_PROXY, WSS_URL } from "./chain.js";
 
 const APP_ID = import.meta.env.VITE_PRIVY_APP_ID || "";
 
+// Privy loads its embedded wallets in a cross-origin iframe. A successful HTTP
+// response alone does not confirm that the iframe completed its handshake.
+window.addEventListener("message", (event) => {
+  if (event.origin !== "https://auth.privy.io" || event.data?.event !== "privy:iframe:ready") return;
+  console.info("[MidatoPay wallet] Respuesta de inicio del iframe de Privy", {
+    successful: !event.data.error,
+    errorType: event.data.error?.type || "",
+  });
+});
+
 function MissingAppId() {
   return (
     <div style={{ minHeight: "100vh", background: "#070B14", color: "#F2F5FA", fontFamily: "system-ui, sans-serif", display: "grid", placeItems: "center", padding: 24 }}>

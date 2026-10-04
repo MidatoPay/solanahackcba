@@ -17,13 +17,37 @@ const APP_ID = import.meta.env.VITE_PRIVY_APP_ID || "";
 
 // Privy loads its embedded wallets in a cross-origin iframe. A successful HTTP
 // response alone does not confirm that the iframe completed its handshake.
+let privyIframeResponded = false;
 window.addEventListener("message", (event) => {
   if (event.origin !== "https://auth.privy.io" || event.data?.event !== "privy:iframe:ready") return;
+  privyIframeResponded = true;
   console.info("[MidatoPay wallet] Respuesta de inicio del iframe de Privy", {
     successful: !event.data.error,
     errorType: event.data.error?.type || "",
   });
 });
+
+const observedPrivyIframes = new WeakSet();
+const privyIframeObserver = new MutationObserver(() => {
+  for (const iframe of document.querySelectorAll('iframe[src*="/embedded-wallets"]')) {
+    if (observedPrivyIframes.has(iframe)) continue;
+    observedPrivyIframes.add(iframe);
+    privyIframeResponded = false;
+    console.info("[MidatoPay wallet] Iframe de Privy insertado");
+    iframe.addEventListener("load", () => {
+      console.info("[MidatoPay wallet] Navegador terminó de cargar el iframe de Privy");
+      window.setTimeout(() => {
+        if (!privyIframeResponded) {
+          console.warn("[MidatoPay wallet] El iframe de Privy no respondió al mensaje de inicio después de 45 segundos");
+        }
+      }, 45000);
+    }, { once: true });
+    iframe.addEventListener("error", () => {
+      console.warn("[MidatoPay wallet] El navegador informó un error al cargar el iframe de Privy");
+    }, { once: true });
+  }
+});
+privyIframeObserver.observe(document.documentElement, { childList: true, subtree: true });
 
 function MissingAppId() {
   return (

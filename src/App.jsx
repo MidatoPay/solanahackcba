@@ -4062,9 +4062,9 @@ function AppInner() {
   }, [address, refreshBalances]);
 
   const applyArsDelta = useCallback(
-    (delta) => {
+    (delta) => { 
       setArsBalance((prev) => {
-        const next = Math.max(0, (prev || 0) + delta);
+        const next = Math.max(0, (prev || 0) +  delta);
         persistArsBalance(address, next);
         return next;
       });

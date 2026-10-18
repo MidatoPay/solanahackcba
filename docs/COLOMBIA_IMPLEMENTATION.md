@@ -66,6 +66,8 @@ El contrato implementado es `prefunded_solana`: `liquidity` informa dueño, USDC
 
 ## Validación pendiente de servicios externos
 
+El procedimiento de ejecución y los criterios de aprobación están en [COLOMBIA_SANDBOX_UAT.md](COLOMBIA_SANDBOX_UAT.md).
+
 El checkout no tenía credenciales OnePay ni una base de datos Colombia. La validación autenticada del sandbox requiere esos accesos, saldo simulado y fondeo Devnet; no se sustituye por respuestas falsas en producción. Las pruebas automáticas usan PostgreSQL PGlite, fixtures bancarios y RPC simulado sin firmar con claves existentes.
 
 El preflight de solo lectura comprobó país/Devnet y cotización pública CriptoYa. Reportó pendientes: clave `sk_test_`, webhook, PostgreSQL aislado y verificación de liquidez Devnet. La migración está preparada y probada localmente; no se aplicó a una base remota.

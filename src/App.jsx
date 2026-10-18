@@ -6,6 +6,7 @@ import MercadoPagoCharge from "./MercadoPagoCharge.jsx";
 import PaymentReports from "./PaymentReports.jsx";
 import TreasuryWalletExport from "./TreasuryWalletExport.jsx";
 import BusinessProfile from "./BusinessProfile.jsx";
+import InstallApp from './InstallApp.jsx';
 import {primarySolanaWallet} from './primaryWallet.js';
 import {useSponsoredTransfers,transferApi,exactUsdc} from './transfers.js';
 import TransferApproval from './TransferApproval.jsx';
@@ -3182,6 +3183,8 @@ function Mas({ email, address, nombre, onLogout, goStack, goReports, privyId, tr
 
       <Card><BusinessProfile profile={merchantProfile.profile} error={merchantProfile.error}
         onSave={merchantProfile.save} onRetry={merchantProfile.retry} /></Card>
+
+      <InstallApp />
 
       <TreasuryWalletExport key={privyId} treasuryAddress={treasuryExportAccess?.address} authorized={treasuryExportAccess?.authorized===true} />
 

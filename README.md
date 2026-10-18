@@ -224,6 +224,8 @@ Use `.env.production.example` as the checklist for the Netlify **Production** co
 
 ### 6.3 Environment variables
 
+Installable webapp setup and icon instructions: [`docs/WEBAPP.md`](docs/WEBAPP.md).
+
 | Variable | Purpose |
 |---|---|
 | `VITE_PRIVY_APP_ID`, `PRIVY_APP_SECRET` | Privy app |

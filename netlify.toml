@@ -34,6 +34,18 @@
 [functions."transfers-dispatch"]
   schedule = "* * * * *"
 
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+    Content-Type = "application/javascript; charset=utf-8"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Cache-Control = "no-cache"
+    Content-Type = "application/manifest+json; charset=utf-8"
+
 [[redirects]]
   from = "/wallet"
   to = "/.netlify/functions/wallet"

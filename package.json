@@ -8,6 +8,7 @@
     "dev:full": "netlify dev --offline",
     "build": "vite build",
     "preview": "vite preview",
+    "icons:generate": "node scripts/generate-app-icons.js",
     "test": "node --test --test-concurrency=1 test/*.test.js",
     "functions:check": "node scripts/check-functions.js",
     "deps:check": "npm audit --omit=dev --audit-level=high --fetch-retries=0 --fetch-timeout=15000",
@@ -38,6 +39,7 @@
     "@electric-sql/pglite": "^0.5.9",
     "@vitejs/plugin-react": "^6.0.5",
     "netlify-cli": "^27.1.0",
+    "sharp": "0.34.5",
     "vite": "^8.2.0"
   },
   "overrides": {

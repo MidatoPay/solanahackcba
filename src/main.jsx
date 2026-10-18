@@ -12,6 +12,14 @@ import { PrivyProvider } from "@privy-io/react-auth";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 import App from "./App.jsx";
 import { RPC_PROXY, WSS_URL, SOLANA } from "./chain.js";
+import { registerAppWorker } from './pwa.js';
+
+// Keep development free of service worker control and register only builds.
+if (import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    registerAppWorker().catch(() => console.warn('[MidatoPay] No se pudo habilitar la pantalla sin conexión.'));
+  }, { once: true });
+}
 
 const APP_ID = import.meta.env.VITE_PRIVY_APP_ID || "";
 

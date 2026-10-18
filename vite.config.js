@@ -27,6 +27,11 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       watch: { ignored: ['**/.netlify/**'] },
+      fs: {
+        // Keep Vite's credential-file defaults and also protect local tooling
+        // configs/binaries when a developer forwards this server through ngrok.
+        deny: ['.env', '.env.*', '*.{crt,pem,key,p12,pfx,cer,der}', '.npmrc', '.yarnrc.yml', '**/.git/**', '**/.netlify/**'],
+      },
       proxy: {
         "/app-config": {target:"http://127.0.0.1:9999",changeOrigin:true,rewrite:()=>"/.netlify/functions/app-config"},
         "/platform": {target:"http://127.0.0.1:9999",changeOrigin:true,rewrite:path=>path.replace(/^\/platform/,"/.netlify/functions/platform")},

@@ -6,7 +6,7 @@ Cada desarrollador mantiene su copia privada de `.env.colombia`, su configuraci�
 
 Ejecutar los comandos desde la raíz del repositorio `solanahackcba/`.
 
-1. Instalar el agente ngrok y obtener el **authtoken del agente** desde su dashboard. No es la API key de OnePay.
+1. En Windows x64 con PowerShell 7, ejecutar `npm run ngrok:setup`. Descarga el ejecutable oficial dentro de `.netlify/tools/ngrok/` y verifica su firma Authenticode antes de ejecutarlo. No modifica el PATH ni la configuración global. En otros sistemas, instalar el agente ngrok siguiendo la [guía oficial](https://ngrok.com/download). Obtener el **authtoken del agente** desde su dashboard; no es la API key de OnePay.
 2. Crear la configuración privada a partir de la plantilla, si todavía no existe:
 
    ```powershell
@@ -32,11 +32,13 @@ Esperar a que Netlify termine de cargar las Functions. La aplicación se abre en
 Segunda terminal:
 
 ```powershell
-ngrok config check --config .netlify/ngrok-colombia.yml
-ngrok start onepay-colombia --config .netlify/ngrok-colombia.yml
+npm run ngrok:check:colombia
+npm run tunnel:colombia
 ```
 
 La configuración dirige el túnel al servidor completo de Netlify en el puerto **8888**. El valor `url: "https://"` utiliza el dominio de desarrollo asignado a la cuenta ngrok; también se puede escribir su URL HTTPS completa en ese campo.
+
+Los comandos npm anteriores usan la instalación local para Windows x64. `ngrok:check:colombia` valida la sintaxis, no la autenticación contra ngrok. `tunnel:colombia` exige reemplazar el marcador de authtoken y oculta ese valor en la salida del agente. En otros sistemas con ngrok instalado globalmente, usar `ngrok config check --config .netlify/ngrok-colombia.yml` y `ngrok start onepay-colombia --config .netlify/ngrok-colombia.yml`.
 
 ## Registrar el destino en OnePay
 

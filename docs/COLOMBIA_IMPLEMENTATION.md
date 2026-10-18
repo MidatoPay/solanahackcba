@@ -90,15 +90,20 @@ Verificaciones del 18 de octubre de 2026:
 
 | Comprobación | Resultado |
 | --- | --- |
-| Suite completa con `VITE_SOLANA_CLUSTER=devnet` | 188 aprobados |
-| Suite completa con `VITE_SOLANA_CLUSTER=mainnet-beta` | 188 aprobados; Colombia sigue forzada a Devnet |
+| Suite completa con `VITE_SOLANA_CLUSTER=devnet` | 189 aprobados |
+| Suite completa con `VITE_SOLANA_CLUSTER=mainnet-beta` | 189 aprobados; Colombia sigue forzada a Devnet |
 | Casos de plataforma, libro y UI, incluidas rampas y separación de proveedores | 41 aprobados, incluidos en los casos de plataforma de la suite |
 | `npm run build:colombia` | Aprobado; advertencias de tamaño de chunks de dependencias |
 | `npm run functions:check` | 25 Functions empaquetadas; rutas protegidas rechazan solicitudes anónimas |
 | `npm run dev:check:colombia` | 8 verificaciones HTTP/MIME aprobadas |
+| Regresión HTTP de archivos privados en Vite | `.netlify`, `/@fs/`, `?raw` y dotenv bloqueados; plantilla pública accesible |
 | Valores privados configurados en el bundle del frontend | Ninguno de los tres valores privados presentes fue encontrado |
 | `git diff --check` | Aprobado; `.env.colombia` permanece ignorado y sin seguimiento |
 
 El arranque se comprobó mediante HTTP y los renders automáticos; no se comprobó una sesión Privy autenticada en navegador. La prueba real OnePay → webhook → conversión/entrega → retiro permanece pendiente de credenciales, PostgreSQL y liquidez de prueba. No se publicaron los cambios ni se aplicaron migraciones remotas.
 
 Requisitos externos aún ausentes al cerrar la implementación: `ONEPAY_API_KEY`, `ONEPAY_WEBHOOK_SECRET`, `ONEPAY_WEBHOOK_TOKEN`, `PLATFORM_DATABASE_URL` y `PLATFORM_DATABASE_CA_CERT`. La plantilla pública de ngrok y la guía por desarrollador están preparadas; la copia privada todavía tiene el marcador de authtoken y no se inició un túnel ni se registró el webhook. `PLATFORM_ENABLED` permanece en `false`. Tras configurar esos accesos, continuar con migración aislada, preflight, liquidez Devnet y prueba autenticada del circuito completo.
+
+Preparación adicional de ngrok: agente oficial 3.39.11 instalado localmente en la carpeta ignorada `.netlify/tools/ngrok/`, con firma Authenticode válida de ngrok, Inc. `npm run ngrok:setup` y `npm run ngrok:check:colombia` aprobaron. `npm run tunnel:colombia` rechazó el marcador de authtoken antes de iniciar el agente; validar la sintaxis no prueba la conexión autenticada ni la entrega de OnePay.
+
+La preparación del túnel detectó una exposición local de archivos de herramientas en Vite: un archivo ficticio de `.netlify` respondió HTTP 200. Se agregó esa carpeta a `server.fs.deny`, conservando las protecciones por defecto para dotenv, certificados, configuración npm/yarn y Git. La regresión `test/dev-private-files.test.js` falló antes del arreglo y aprobó después: rutas normales, `/@fs/` y `?raw` de `.netlify`, además de dotenv, responden 403 y no entregan el marcador; la plantilla pública de ngrok continúa accesible. La comprobación usa únicamente archivos ficticios.

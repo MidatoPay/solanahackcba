@@ -60,6 +60,14 @@ El resultado debe distinguir cambios implementados, checks realmente ejecutados 
 
 ## Mantenimiento y portabilidad
 
+### Disponibilidad temporal de CI
+
+Al 18 de octubre de 2026, el responsable informa que GitHub Actions no dispone de creditos. Mientras persista esta condicion, documentar CI como no disponible y usar verificaciones locales proporcionales y la preview de Netlify cuando corresponda. Para esta entrega documental se autorizo continuar con la integracion sin esperar esos jobs; no interpretar esa excepcion como permiso para ignorar fallos de codigo, omitir verificaciones de futuros cambios o saltar protecciones del repositorio. No informar CI como aprobada.
+
+El workflow `Mercado Pago review` quedo desactivado temporalmente. Cuando haya creditos, reactivarlo desde GitHub Actions o con `gh workflow enable mercadopago-review.yml --repo MidatoPay/solanahackcba`. CodeQL no se modifico. La configuracion de Netlify se conserva.
+
+### Fuente de instrucciones
+
 La fuente del procedimiento es [SKILL.md](../.agents/skills/frontend-assistant/SKILL.md); el mapa del producto esta en [la referencia MidatoPay](../.agents/skills/frontend-assistant/references/midatopay.md). Actualizar la referencia cuando cambien entradas, paises o scripts y conservar los detalles tecnicos en el codigo.
 
 No duplicar la skill por editor ni copiar estas reglas dentro de multiples archivos de instrucciones. Para llevarla a otro harness sobre este repositorio, compartir la carpeta completa, conservar las rutas relativas e indicar que lea `SKILL.md`. Para otro producto, adaptar el contexto de MidatoPay y los enlaces de uso.

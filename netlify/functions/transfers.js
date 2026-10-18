@@ -1,3 +1,4 @@
+import { guardLegacyHandler } from './lib/legacyCountry.js';
 import {NETWORK} from '../../src/network.js';
 import {authenticatePayment,getPaymentDb,json,errorResponse,kickWorker} from './lib/paymentRuntime.js';
 import {PaymentError} from './lib/paymentCore.js';
@@ -43,4 +44,6 @@ export function createTransfersHandler(adapters={}) {
   }catch(error){return errorResponse(error);}
  };
 }
-export const handler=createTransfersHandler();
+const legacyHandler =createTransfersHandler();
+
+export const handler = guardLegacyHandler(legacyHandler);

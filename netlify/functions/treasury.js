@@ -1,3 +1,4 @@
+import { guardLegacyHandler } from './lib/legacyCountry.js';
 // API de la recaudadora: status público + payouts firmados server-side.
 // TREASURY_SECRET_KEY vive solo acá (sin prefijo VITE_).
 
@@ -42,7 +43,7 @@ async function authenticate(event) {
   }
 }
 
-export const handler = async (event) => {
+const legacyHandler = async (event) => {
   const method = event.httpMethod || event.method || "GET";
 
   if (method === "GET") {
@@ -100,3 +101,5 @@ export const handler = async (event) => {
 
   return json(405, { error: "method_not_allowed" });
 };
+
+export const handler = guardLegacyHandler(legacyHandler);

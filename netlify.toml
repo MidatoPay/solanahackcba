@@ -4,14 +4,17 @@
 
 [build.environment]
   # Only non-credential configuration values; all other secret scanning stays enabled.
-  SECRETS_SCAN_OMIT_KEYS = "PAYMENTS_BASE_URL,MP_ENVIRONMENT,PAYMENTS_ENABLED,VITE_SOLANA_CLUSTER,ETH_RPC_URL"
+  SECRETS_SCAN_OMIT_KEYS = "PAYMENTS_BASE_URL,MP_ENVIRONMENT,PAYMENTS_ENABLED,VITE_SOLANA_CLUSTER,ETH_RPC_URL,APP_COUNTRY,APP_ENVIRONMENT,PLATFORM_DEPLOYMENT_ID,PLATFORM_ENABLED,ONEPAY_ACCOUNT_REF,FX_PROVIDER,FX_CACHE_TTL_SECONDS,FX_MAX_AGE_SECONDS"
 
 [dev]
+  # Launchers load their chosen dotenv file explicitly; do not mix countries.
+  envFiles = []
   command = "npm run dev -- --host 127.0.0.1 --port 5173"
   targetPort = 5173
   port = 8888
   functionsPort = 9999
   autoLaunch = false
+  framework = "#custom"
 
 [functions]
   directory = "netlify/functions"
@@ -33,6 +36,24 @@
 
 [functions."transfers-dispatch"]
   schedule = "* * * * *"
+
+[[redirects]]
+  from = "/app-config"
+  to = "/.netlify/functions/app-config"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/platform/*"
+  to = "/.netlify/functions/platform/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/webhooks/onepay"
+  to = "/.netlify/functions/onepay-webhook"
+  status = 200
+  force = true
 
 [[redirects]]
   from = "/wallet"

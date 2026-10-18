@@ -7,7 +7,7 @@
 - RPC: the URL comes from `.env` / `VITE_SOLANA_RPC` (Triton/Helius). Never hardcode keys, never commit them. Browser traffic goes through `/rpc` (Vite proxy / Netlify function).
 - Wallets: Privy embedded Solana (`embeddedWallets.solana.createOnLogin`). Keys never leave the wallet.
 - Tokens: identify USDC by **mint + token program** per cluster (`src/chain.js`), never by symbol. Verify mint/owner/decimals on every token account.
-- FX: Chainlink USD/ARS on Ethereum Mainnet via `/eth-rpc` (ethers only for that read). Do not invent an oracle.
+- FX: Argentina uses Chainlink USD/ARS on Ethereum Mainnet via `/eth-rpc` (ethers only for that read). Colombia sandbox uses public CriptoYa USDC/COP market quotes, identified as indicative (not TRM), with freshness checks and no ARS fallback. Provider selection belongs to the country configuration; do not invent an oracle.
 
 ## Client and transactions
 - Before signing: show recipient, amount, token (USDC mint), fee payer and cluster. Estimate fee in SOL. Only then send.

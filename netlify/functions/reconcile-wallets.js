@@ -1,3 +1,4 @@
+import { guardLegacyHandler } from './lib/legacyCountry.js';
 import { NETWORK } from "../../src/network.js";
 // Job de reconciliación: corre cada 15 min (ver netlify.toml), recorre
 // todas las wallets conocidas y reconcilia cada una contra el RPC de Solana.
@@ -28,7 +29,7 @@ function getPool() {
   return pool;
 }
 
-export const handler = async () => {
+const legacyHandler = async () => {
   const db = getPool();
   const { rows: wallets } = await db.query("SELECT user_id, address, last_synced_block FROM wallets WHERE network=$1",[NETWORK.cluster]);
 
@@ -57,3 +58,5 @@ export const handler = async () => {
   console.log(`reconcile-wallets: ${ok} ok, ${failed} failed, ${wallets.length} total`);
   return { statusCode: 200, body: JSON.stringify({ ok, failed, total: wallets.length }) };
 };
+
+export const handler = guardLegacyHandler(legacyHandler);

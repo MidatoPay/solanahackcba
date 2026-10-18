@@ -1,3 +1,4 @@
+import { guardLegacyHandler } from './lib/legacyCountry.js';
 import { authenticatePayment, getPaymentDb, json, errorResponse } from "./lib/paymentRuntime.js";
 import { isPaymentAdmin, assertPaymentAdmin, reportFilters, listReportOperations, reportSummary } from "./lib/paymentReporting.js";
 import { runPaymentPreflight } from "./lib/paymentPreflight.js";
@@ -20,4 +21,6 @@ export function createPaymentReportsHandler(overrides={}) {
   } catch(error){return errorResponse(error);}
 };
 }
-export const handler=createPaymentReportsHandler();
+const legacyHandler =createPaymentReportsHandler();
+
+export const handler = guardLegacyHandler(legacyHandler);

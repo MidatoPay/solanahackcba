@@ -1,3 +1,4 @@
+import { guardLegacyHandler } from './lib/legacyCountry.js';
 import {isAddress} from '@solana/kit';
 import {authenticatePayment,getPaymentDb,json,errorResponse} from './lib/paymentRuntime.js';
 import {PaymentError} from './lib/paymentCore.js';
@@ -38,4 +39,6 @@ export function createContactsHandler(adapters={}) {
     }catch(error){if(error?.code==='23505')return json(400,{error:'alias_duplicate'});return errorResponse(error);}
   };
 }
-export const handler=createContactsHandler();
+const legacyHandler =createContactsHandler();
+
+export const handler = guardLegacyHandler(legacyHandler);

@@ -1,3 +1,4 @@
+import { guardLegacyHandler } from './lib/legacyCountry.js';
 import { authenticatePayment, getPaymentDb, getPaymentPrivy, json, errorResponse } from './lib/paymentRuntime.js';
 import { PaymentError } from './lib/paymentCore.js';
 import { userDisplayName, merchantDisplayName } from '../../src/merchantIdentity.js';
@@ -34,4 +35,6 @@ export function createMerchantProfileHandler(adapters = {}) {
     } catch(error) { return errorResponse(error); }
   };
 }
-export const handler = createMerchantProfileHandler();
+const legacyHandler = createMerchantProfileHandler();
+
+export const handler = guardLegacyHandler(legacyHandler);

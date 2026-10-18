@@ -1,3 +1,4 @@
+import { guardLegacyHandler } from './lib/legacyCountry.js';
 import { PaymentError, publicCharge } from "./lib/paymentCore.js";
 import { authenticatePayment, paymentSettings, getPaymentDb, json, errorResponse, kickWorker } from "./lib/paymentRuntime.js";
 import { createCharge, getCharge, getChargeAttempt } from "./lib/paymentService.js";
@@ -45,4 +46,6 @@ export function createChargesHandler(overrides={}) {
   } catch (error) { return errorResponse(error); }
   };
 }
-export const handler=createChargesHandler();
+const legacyHandler =createChargesHandler();
+
+export const handler = guardLegacyHandler(legacyHandler);

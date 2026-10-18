@@ -39,7 +39,7 @@ async function authenticate(event) {
 
 function buildPrompt(text, lang, aliases) {
   const list = Array.isArray(aliases) ? aliases.map(String) : [];
-  return lang === "en"
+  const prompt = lang === "en"
     ? `You are MidatoPay's voice payment agent. Extract the intent from this English command and respond ONLY with valid JSON, no markdown or extra text.
 
 Command: "${text}"
@@ -60,6 +60,9 @@ Formato exacto:
 {"intent":"send"|"charge"|"unknown","amount":<número o null>,"currency":"USDC"|"ARS","recipient":"<alias del contacto más parecido o null>","confidence":<0 a 1>}
 
 Reglas: "cobrar"/"charge"/"collect" significa que el usuario quiere solicitar un pago, no enviarlo — recipient siempre es null para "charge". "dólares", "usd" o "usdc" → USDC. "pesos" o "ars" → ARS. Si la moneda no está clara o no se menciona, default a USDC para "send" — nunca asumas ARS — y a ARS para "charge". Matcheá el alias aunque esté mal transcripto (ej: "caty" → "katy").`;
+  const currency = process.env.APP_COUNTRY === 'AR' ? 'ARS' : 'COP';
+  return prompt.replaceAll('ARS', currency).replaceAll('ars', currency.toLowerCase())
+    .replace('español rioplatense', currency === 'COP' ? 'español de Colombia' : 'español rioplatense');
 }
 
 export const handler = async (event) => {
@@ -115,7 +118,7 @@ export const handler = async (event) => {
       .join("\n");
     const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
     return json(200, { intent: parsed });
-  } catch (err) {
-    return json(500, { error: String(err?.message || err) });
+  } catch {
+    return json(503, { error: 'intent_parser_unavailable' });
   }
 };

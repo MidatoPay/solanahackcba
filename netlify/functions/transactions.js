@@ -1,3 +1,4 @@
+import { guardLegacyHandler } from './lib/legacyCountry.js';
 import { NETWORK } from "../../src/network.js";
 // API del historial de transacciones — puente entre el browser y Postgres
 // (Aiven). Mismo patrón que netlify/functions/contacts.js: el browser nunca
@@ -69,7 +70,7 @@ async function authenticate(event) {
 
 const REQUIRED_FIELDS = ["hash", "kind", "direction", "who", "amt", "fx_rate", "ars"];
 
-export const handler = async (event) => {
+const legacyHandler = async (event) => {
   const userId = await authenticate(event);
   if (!userId) return json(401, { error: "unauthorized" });
 
@@ -168,3 +169,5 @@ export const handler = async (event) => {
     return json(500, { error: "server_error" });
   }
 };
+
+export const handler = guardLegacyHandler(legacyHandler);

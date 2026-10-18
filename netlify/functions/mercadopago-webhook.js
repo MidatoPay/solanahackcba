@@ -1,7 +1,8 @@
+import { guardLegacyHandler } from './lib/legacyCountry.js';
 import { verifyWebhook } from "./lib/paymentCore.js";
 import { paymentSettings, getPaymentDb, json, errorResponse, kickWorker } from "./lib/paymentRuntime.js";
 
-export const handler = async (event) => {
+const legacyHandler = async (event) => {
   if (event.httpMethod !== "POST") return json(405, { error: "method_not_allowed" });
   try {
     if (Buffer.byteLength(event.body || "") > 65536) return json(413, { error:"payload_too_large" });
@@ -15,3 +16,5 @@ export const handler = async (event) => {
     return json(200, { received: true });
   } catch (error) { return errorResponse(error); }
 };
+
+export const handler = guardLegacyHandler(legacyHandler);

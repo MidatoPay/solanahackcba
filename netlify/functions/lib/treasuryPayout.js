@@ -188,7 +188,7 @@ async function waitForSignature(rpc, sig, timeoutMs) {
   return null;
 }
 
-export async function prepareTreasuryPayout({ to, usdc, rawAmount, kind, ars, fxRate, factura: facturaIn }) {
+export async function prepareTreasuryPayout({ to, usdc, rawAmount, kind, ars, fiatAmount, currency = 'ARS', fxRate, factura: facturaIn }) {
   assertIsAddress(to);
   const signer = await getTreasurySigner();
   const from = signer.address;
@@ -212,8 +212,8 @@ export async function prepareTreasuryPayout({ to, usdc, rawAmount, kind, ars, fx
   const memo = armarMemo({
     inv: factura,
     kind,
-    cur: "ARS",
-    amt: ars,
+    cur: currency,
+    amt: fiatAmount ?? ars,
     fx: Number(fxRate).toFixed(2),
     usdc: Number(usdc).toFixed(6),
   });

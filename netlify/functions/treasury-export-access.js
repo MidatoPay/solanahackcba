@@ -1,3 +1,4 @@
+import { guardLegacyHandler } from './lib/legacyCountry.js';
 import { authenticatePayment,json,errorResponse } from './lib/paymentRuntime.js';
 import { assertPaymentAdmin } from './lib/paymentReporting.js';
 import { resolvePrimaryWallet } from './lib/primaryWallet.js';
@@ -15,4 +16,6 @@ export function createTreasuryExportAccessHandler(adapters={}) {
     }catch(error){return errorResponse(error);}
   };
 }
-export const handler=createTreasuryExportAccessHandler();
+const legacyHandler =createTreasuryExportAccessHandler();
+
+export const handler = guardLegacyHandler(legacyHandler);

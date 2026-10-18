@@ -1,0 +1,14 @@
+# Copy to .netlify/ngrok-colombia.yml. That local copy is ignored by Git.
+# Each developer supplies their own ngrok agent authtoken in the local copy.
+# This is an ngrok token, not a OnePay API key or webhook secret.
+version: 3
+agent:
+  authtoken: REEMPLAZAR_CON_TU_NGROK_AUTHTOKEN
+  web_addr: 127.0.0.1:4040
+endpoints:
+  - name: onepay-colombia
+    # ngrok assigns this account's dev domain. You can also paste the complete
+    # HTTPS dev-domain URL shown in your ngrok dashboard here.
+    url: "https://"
+    upstream:
+      url: http://127.0.0.1:8888

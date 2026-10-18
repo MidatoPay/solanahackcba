@@ -1,3 +1,4 @@
+import { guardLegacyHandler } from './lib/legacyCountry.js';
 import { authenticatePayment,json,errorResponse } from './lib/paymentRuntime.js';
 import { syncPrimaryWallet } from './lib/primaryWallet.js';
 export function createWalletHandler(adapters={}) {
@@ -9,4 +10,6 @@ export function createWalletHandler(adapters={}) {
     }catch(error){return errorResponse(error);}
   };
 }
-export const handler=createWalletHandler();
+const legacyHandler =createWalletHandler();
+
+export const handler = guardLegacyHandler(legacyHandler);

@@ -1,5 +1,7 @@
 # MidatoPay × Solana: QR and voice payments
 
+The `colombia` branch adds a country/service configuration layer and a Colombian **OnePay sandbox + Solana Devnet** implementation, including COP balances, conversions, bank/Bre-B withdrawals and optional bank accounts in contacts. See [Colombia setup and verification](docs/COLOMBIA_IMPLEMENTATION.md). Argentina's existing implementation below remains available with `APP_COUNTRY=AR`.
+
 **Argentine merchants get paid in pesos through a Mercado Pago QR code and receive the proceeds in USDC on Solana.**
 
 The customer pays in ARS with a Mercado Pago QR code. MidatoPay verifies the payment server-side, and a treasury sends the equivalent amount in native USDC, net of a 0.5% fee, to the merchant's Solana wallet. Every settlement carries an on-chain memo with the charge reference, the ARS amount and the exchange rate.

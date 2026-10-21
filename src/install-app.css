@@ -1,0 +1,31 @@
+.mp-install-card {
+  padding: 16px;
+  border: 1px solid #ECECF0;
+  border-radius: 22px;
+  background: #fff;
+  color: #16161A;
+  font-family: 'Poppins', system-ui, sans-serif;
+}
+.mp-install-suggestion {
+  position: fixed;
+  z-index: 30;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+  width: min(368px, calc(100% - 24px));
+  max-height: calc(100dvh - 160px - env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  box-shadow: 0 8px 28px rgba(22, 22, 26, .16);
+}
+.mp-install-card h2 { font-size: 16px; font-weight: 600; margin: 0; }
+.mp-install-card p { margin: 8px 0 12px; font-size: 13px; color: #606071; line-height: 1.5; }
+.mp-install-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.mp-install-actions button {
+  min-height: 44px; padding: 10px 16px; border: 0; border-radius: 14px;
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  background: #a93600; color: #fff;
+}
+.mp-install-actions button:disabled { cursor: wait; opacity: .7; }
+.mp-install-actions .mp-install-later { background: #F7F7F9; color: #16161A; }
+.mp-install-actions button:focus-visible { outline: 2px solid #5C4CC7; outline-offset: 3px; }
+.mp-install-help { margin-top: 12px; }

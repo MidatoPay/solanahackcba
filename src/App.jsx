@@ -46,6 +46,7 @@ import { LanguageProvider, useLanguage, speechLangFor } from "./i18n.jsx";
 import { transferErrorText } from "./errorText.js";
 import LanguageSelect from "./LanguageSelect.jsx";
 import ProfileScreen from "./ProfileScreen.jsx";
+import InstallApp from "./InstallApp.jsx";
 import {
   loadContacts,
   addContact,
@@ -3431,6 +3432,7 @@ export default function App() {
   return (
     <LanguageProvider>
       <AppInner />
+      <InstallApp automatic />
     </LanguageProvider>
   );
 }

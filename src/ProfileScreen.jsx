@@ -4,6 +4,7 @@ import { SOLANA, explorerAddressUrl } from "./chain.js";
 import BusinessProfile from "./BusinessProfile.jsx";
 import TreasuryWalletExport from "./TreasuryWalletExport.jsx";
 import LanguageSelect from "./LanguageSelect.jsx";
+import InstallApp from "./InstallApp.jsx";
 
 // Perfil: identidad, negocio, cuenta, administración (solo admins) y cierre de sesión.
 const C = { bg: "#F7F7F9", card: "#FFFFFF", ink: "#16161A", mut: "#7A7A85", line: "#ECECF0", accent: "#fe6c1c", orangeSoft: "#FFEADF", green: "#21B95B", red: "#E4483D", redSoft: "#FDECEA" };
@@ -131,6 +132,8 @@ export default function ProfileScreen({ email, address, nombre, onLogout, goRepo
         <Divider />
         <SettingsRow icon={<IconGlobe />} title={t("mas.languageTitle")} trailing={<LanguageSelect id="mp-profile-language" />} />
       </Section>
+
+      <InstallApp />
 
       {showAdmin && (
         <Section title={t("mas.sectionAdmin")}>

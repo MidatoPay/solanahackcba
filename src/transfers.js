@@ -1,6 +1,7 @@
 import {useEffect,useRef,useState} from 'react';
 import {Buffer} from 'buffer';
 import {SOLANA} from './chain.js';
+import {securityFetch as fetch,nativeSecurityOperation,securitySnapshot} from './securitySession.js';
 
 // Errores del cliente con código, para poder traducirlos en la interfaz (errorText.js). El mensaje sigue en español.
 const fail=(code,message)=>Object.assign(new Error(message),{code});
@@ -51,10 +52,11 @@ export function useSponsoredTransfers({userId,wallet,getAccessToken,signTransact
  const save=value=>{try{localStorage.setItem(storageKey,JSON.stringify(value));}catch{throw fail('storage_unavailable','Habilitá el almacenamiento local para recuperar el envío si se interrumpe.');}};
  const clear=()=>{try{localStorage.removeItem(storageKey);}catch{}}
  useEffect(()=>{
+  identity.current=userId;
   let canceled=false;setInfo(null);setRecovery(null);setApproval(null);setError('');setErrorCode(null);
   pending.current?.reject(fail('session_changed','La sesión cambió.'));pending.current=null;
   if(userId){setRecovery(read());transferApi('/transfers',getAccessToken).then(body=>{if(!canceled)setInfo(body);}).catch(()=>{});}
-  return()=>{canceled=true;};
+  return()=>{canceled=true;identity.current=null;pending.current?.reject(fail('session_changed','La sesión cambió.'));pending.current=null;};
  },[userId,getAccessToken]);
  const send=parsed=>{
   if(pending.current || running.current)return Promise.reject(fail('approval_in_progress','Ya hay una autorización en curso.'));
@@ -82,7 +84,9 @@ export function useSponsoredTransfers({userId,wallet,getAccessToken,signTransact
     transfer=body.transfer;assertTransferMatches(transfer,approval.input);saved={...saved,id:transfer.id};save(saved);setRecovery(saved);
     if(identity.current!==owner)throw fail('session_changed','La sesión cambió.');
     if(!transfer.signature){
-     const result=await signTransaction({transaction:new Uint8Array(Buffer.from(transfer.transaction,'base64')),wallet,chain:SOLANA.chain});
+     const epoch=securitySnapshot().epoch;
+     const result=await nativeSecurityOperation(()=>signTransaction({transaction:new Uint8Array(Buffer.from(transfer.transaction,'base64')),wallet,chain:SOLANA.chain}));
+     if(securitySnapshot().epoch!==epoch)throw fail('session_changed','La sesión cambió.');
      if(identity.current!==owner)throw fail('session_changed','La sesión cambió.');
      const submitted=await transferApi(`/transfers/${transfer.id}/submit`,getAccessToken,{method:'POST',body:JSON.stringify({signedTransaction:Buffer.from(result.signedTransaction).toString('base64')})});
      transfer=submitted.transfer;setInfo(previous=>({...previous,quota:submitted.quota}));

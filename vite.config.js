@@ -17,6 +17,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
+        "/security": {target:"http://127.0.0.1:9999",changeOrigin:true,rewrite:path=>path.replace(/^\/security/,"/.netlify/functions/security")},
         "/quote": {target:"http://127.0.0.1:8888",changeOrigin:true},
         "/balance": {target:"http://127.0.0.1:8888",changeOrigin:true},
         "/wallet": {target:"http://127.0.0.1:9999",changeOrigin:true,rewrite:path=>path.replace(/^\/wallet/,"/.netlify/functions/wallet")},

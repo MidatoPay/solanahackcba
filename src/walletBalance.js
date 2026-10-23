@@ -1,3 +1,4 @@
+import {securityFetch as fetch} from './securitySession.js';
 import { rpcAccessToken } from './rpcSession.js';
 import { SOLANA } from './chain.js';
 

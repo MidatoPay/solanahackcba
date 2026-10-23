@@ -26,6 +26,7 @@ import {
 import { getAddMemoInstruction } from "@solana-program/memo";
 import bs58 from "bs58";
 import { createAppRpc, SOLANA, USDC_MINT, USDC_DECIMALS } from "./chain.js";
+import {nativeSecurityOperation,securitySnapshot} from './securitySession.js';
 
 export const rpc = createAppRpc();
 
@@ -213,6 +214,7 @@ export const estimateNativeUsdcTransfer = estimateUsdcTransfer;
  * @param {(args: { transaction: Uint8Array, wallet: unknown }) => Promise<{ signature?: string } | string | Uint8Array>} signAndSendTransaction
  */
 export async function sendUsdc(wallet, signAndSendTransaction, { to, usdc, memo }) {
+  const epoch=securitySnapshot().epoch;
   if (!wallet?.address) throw new Error("Wallet no conectada");
   if (typeof signAndSendTransaction !== "function") {
     throw new Error("signAndSendTransaction no disponible");
@@ -225,13 +227,16 @@ export async function sendUsdc(wallet, signAndSendTransaction, { to, usdc, memo 
     memo,
   });
 
-  const result = await withRetry(() =>
-    signAndSendTransaction({
+  if(securitySnapshot().epoch!==epoch)throw new Error('app_locked');
+  const result = await withRetry(() => {
+    if(securitySnapshot().epoch!==epoch)throw new Error('app_locked');
+    return nativeSecurityOperation(()=>signAndSendTransaction({
       transaction,
       wallet,
       chain: SOLANA.chain,
-    })
-  );
+    }));
+  });
+  if(securitySnapshot().epoch!==epoch)throw new Error('app_locked');
 
   const hash = normalizeSignature(result);
   let block = null;

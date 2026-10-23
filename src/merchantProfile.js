@@ -1,3 +1,4 @@
+import {securityFetch as fetch} from './securitySession.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 async function profileRequest(getAccessToken, options = {}) {

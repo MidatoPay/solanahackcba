@@ -47,6 +47,18 @@
     Content-Type = "application/manifest+json; charset=utf-8"
 
 [[redirects]]
+  from = "/security/*"
+  to = "/.netlify/functions/security/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/security"
+  to = "/.netlify/functions/security"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/wallet"
   to = "/.netlify/functions/wallet"
   status = 200

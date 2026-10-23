@@ -4,6 +4,7 @@ import { useExportWallet, useWallets } from "@privy-io/react-auth/solana";
 import { useLanguage } from "./i18n.jsx";
 import { openTreasuryWalletExport, treasuryExportWallets } from "./treasuryWalletExport.js";
 import {transferApi} from './transfers.js';
+import {nativeSecurityOperation} from './securitySession.js';
 
 const KEYS = ["title", "wallet", "active", "notice", "button", "opening", "error"];
 
@@ -24,7 +25,7 @@ export default function TreasuryWalletExport({ treasuryAddress, authorized=false
     if (exporting.current) return;
     exporting.current = true; setBusy(true); setError(false);
     try {
-      await openTreasuryWalletExport({ ready, authenticated, user, address: selected, exportWallet,
+      await openTreasuryWalletExport({ ready, authenticated, user, address: selected, exportWallet:options=>nativeSecurityOperation(()=>exportWallet(options)),
         authorize:()=>transferApi('/treasury/export-access',getAccessToken) });
     } catch {
       // Do not expose SDK errors that could contain sensitive export information.

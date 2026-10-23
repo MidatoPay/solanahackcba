@@ -1,3 +1,4 @@
+import { authenticatePayment } from './lib/paymentRuntime.js';
 import { NETWORK } from "../../src/network.js";
 // API del historial de transacciones — puente entre el browser y Postgres
 // (Aiven). Mismo patrón que netlify/functions/contacts.js: el browser nunca
@@ -39,32 +40,19 @@ function getPool() {
   return pool;
 }
 
-let privy;
-function getPrivy() {
-  if (!privy) {
-    privy = new PrivyClient(process.env.VITE_PRIVY_APP_ID, process.env.PRIVY_APP_SECRET);
-  }
-  return privy;
-}
+
 
 function json(statusCode, body) {
   return {
     statusCode,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
     body: JSON.stringify(body),
   };
 }
 
 async function authenticate(event) {
-  const authHeader = event.headers?.authorization || event.headers?.Authorization || "";
-  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-  if (!token) return null;
-  try {
-    const claims = await getPrivy().verifyAuthToken(token);
-    return claims.userId;
-  } catch {
-    return null;
-  }
+  try { return await authenticatePayment(event); }
+  catch { return null; }
 }
 
 const REQUIRED_FIELDS = ["hash", "kind", "direction", "who", "amt", "fx_rate", "ars"];

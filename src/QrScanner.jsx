@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import jsQR from "jsqr";
+import {nativeSecurityOperation} from './securitySession.js';
 
 const MAX_SCAN_WIDTH = 720; // jsQR sobre frames reducidos: más rápido en celulares
 const SCAN_INTERVAL_MS = 120;
@@ -59,8 +60,8 @@ export default function QrScanner({ onDecode, onCameraError, onTorchSupport, fil
       timer = setTimeout(scan, SCAN_INTERVAL_MS);
     };
 
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false })
+    nativeSecurityOperation(()=>navigator.mediaDevices
+      .getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false }))
       .then((stream) => {
         if (cancelled) {
           stream.getTracks().forEach((track) => track.stop());

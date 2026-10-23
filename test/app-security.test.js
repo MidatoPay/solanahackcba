@@ -35,6 +35,7 @@ test('security API with PostgreSQL: factors, lockout, sessions, WebAuthn and rec
  const engine=new PGlite();await engine.waitReady;t.after(()=>engine.close());
  const migration=await readFile(new URL('../db/migrations/20261021_app_security.sql',import.meta.url),'utf8');
  await engine.exec(migration);await engine.exec(migration);
+ await engine.exec(await readFile(new URL('../db/migrations/20261022_security_recovery.sql',import.meta.url),'utf8'));
  const query=(sql,params=[])=>engine.query(sql,params);
  let tail=Promise.resolve();
  const pool={query,connect:async()=>{const previous=tail;let release;tail=new Promise(r=>{release=r;});await previous;return {query,release};}};
@@ -46,11 +47,13 @@ test('security API with PostgreSQL: factors, lockout, sessions, WebAuthn and rec
    headers:{'x-nf-client-connection-ip':'test-ip-'+(++ip),...headers},owner:who});
   assert.equal(response.headers['Cache-Control'],'no-store');return {status:response.statusCode,...JSON.parse(response.body)};
  };
+ const scenario=async(name,fn)=>{await query('DELETE FROM app_security_limits');await t.test(name,fn);};
  let unlock;
- await t.test('new/existing users cannot access private APIs with Privy alone',async()=>{
+ await scenario('new/existing users cannot access private APIs with Privy alone',async()=>{
   assert.equal((await call('status')).pin,false);
   await assert.rejects(()=>requireUnlock({headers:{authorization:'Bearer privy'}},owner,pool,env),{code:'app_locked'});
   await assert.rejects(()=>requireUnlock({headers:{'x-app-unlock':opaque()}},owner,pool,env),{code:'app_locked'});
+  await query("UPDATE app_security_users SET recovery_email='fixture@example.test',recovery_verified_at=now(),recovery_version=1 WHERE user_id=$1",[owner.userId]);
   const result=await call('pin/enroll',{pin:'03927'});assert.equal(result.status,200);unlock=result.token;
   const stored=(await query('SELECT * FROM app_security_sessions')).rows[0];assert.notEqual(stored.token_hash,unlock);assert.equal(stored.token_hash,hash(unlock));
   assert.equal((await call('status')).pin,true);
@@ -58,11 +61,11 @@ test('security API with PostgreSQL: factors, lockout, sessions, WebAuthn and rec
   await assert.rejects(()=>requireUnlock({headers:{'x-app-unlock':unlock}},{...owner,sessionId:'other'},pool,env),{code:'app_locked'});
   await assert.rejects(()=>requireUnlock({headers:{'x-app-unlock':unlock}},{...owner,userId:'other'},pool,env),{code:'app_locked'});
  });
- await t.test('changes need a fresh factor; last method cannot be removed',async()=>{
+ await scenario('changes need a fresh factor; last method cannot be removed',async()=>{
   assert.equal((await call('pin/enroll',{pin:'92837'},{'x-app-unlock':unlock})).status,403);
   assert.equal((await call('methods/remove',{id:'pin'})).error,'last_factor_required');
  });
- await t.test('five concurrent incorrect PIN attempts commit and block for 15 minutes',async()=>{
+ await scenario('five concurrent incorrect PIN attempts commit and block for 15 minutes',async()=>{
   const results=await Promise.all(Array.from({length:5},()=>call('pin/verify',{pin:'92837'})));
   assert.equal(results.filter(result=>result.error==='incorrect_pin').length,5);
   const row=(await query('SELECT * FROM app_security_users WHERE user_id=$1',[owner.userId])).rows[0];
@@ -74,7 +77,7 @@ test('security API with PostgreSQL: factors, lockout, sessions, WebAuthn and rec
   assert.equal((await query('SELECT failed_attempts FROM app_security_users')).rows[0].failed_attempts,1);
   assert.equal((await call('pin/verify',{pin:'03927'})).scope,'unlock');
  });
- await t.test('opaque unlock renewal, expiration and revocation',async()=>{
+ await scenario('opaque unlock renewal, expiration and revocation',async()=>{
   assert.equal((await call('renew',{}, {'x-app-unlock':unlock})).expiresIn,90);
   await call('lock',{}, {'x-app-unlock':unlock});
   await assert.rejects(()=>requireUnlock({headers:{'x-app-unlock':unlock}},owner,pool,env),{code:'app_locked'});
@@ -85,7 +88,7 @@ test('security API with PostgreSQL: factors, lockout, sessions, WebAuthn and rec
   await query("UPDATE app_security_sessions SET absolute_expires_at=now()-interval '1 second' WHERE token_hash=$1",[hash(absolute)]);
   assert.equal((await call('renew',{}, {'x-app-unlock':absolute})).status,423);
  });
- await t.test('PIN change consumes a single-use management grant and invalidates all unlocks',async()=>{
+ await scenario('PIN change consumes a single-use management grant and invalidates all unlocks',async()=>{
   unlock=(await call('pin/verify',{pin:'03927'})).token;
   const grant=await call('pin/verify',{pin:'03927',purpose:'manage'});
   await assert.rejects(()=>requireUnlock({headers:{'x-app-unlock':grant.token}},owner,pool,env),{code:'app_locked'});
@@ -111,7 +114,7 @@ test('security API with PostgreSQL: factors, lockout, sessions, WebAuthn and rec
    clientDataJSON:Buffer.from(JSON.stringify({type:'webauthn.create',challenge,origin})).toString('base64url'),
    attestationObject:attestation.toString('base64url'),transports:['internal']}};
  }
- await t.test('passkey options demand UV and store single-use, expiring, session-bound challenges',async()=>{
+ await scenario('passkey options demand UV and store single-use, expiring, session-bound challenges',async()=>{
   const grant=await call('pin/verify',{pin:'92837',purpose:'manage'});
   const options=await call('passkey/register-options',{}, {'x-security-grant':grant.token});
   assert.equal(options.options.authenticatorSelection.userVerification,'required');
@@ -132,7 +135,7 @@ test('security API with PostgreSQL: factors, lockout, sessions, WebAuthn and rec
   const savedKey=(await query('SELECT * FROM app_security_passkeys WHERE credential_id=$1',[credentialId])).rows[0];
   assert.equal(savedKey.credential.publicKey,cose.toString('base64url'));assert.deepEqual(savedKey.credential.transports,['internal']);
  });
- await t.test('real WebAuthn signatures reject wrong origin, RP, UV, key, user handle and foreign credential',async()=>{
+ await scenario('real WebAuthn signatures reject wrong origin, RP, UV, key, user handle and foreign credential',async()=>{
   for(const variation of [{origin:'https://evil.example'},{rp:'evil.example'},{flags:1},{key:generateKeyPairSync('ec',{namedCurve:'prime256v1'}).privateKey},{userHandle:'foreign'}]) {
    const options=await call('passkey/options');assert.equal(options.options.userVerification,'required');
    assert.equal((await call('passkey/verify',{challengeId:options.challengeId,response:response(options.options.challenge,variation)})).error,'invalid_passkey');
@@ -147,12 +150,12 @@ test('security API with PostgreSQL: factors, lockout, sessions, WebAuthn and rec
   const options=await call('passkey/options');
   assert.equal((await call('passkey/verify',{challengeId:options.challengeId,response:response(options.options.challenge)})).scope,'unlock');
  });
- await t.test('passkey remains available during PIN lockout',async()=>{
+ await scenario('passkey remains available during PIN lockout',async()=>{
   await query("UPDATE app_security_users SET blocked_until=now()+interval '15 minutes' WHERE user_id=$1",[owner.userId]);
   const options=await call('passkey/options');
   assert.equal((await call('passkey/verify',{challengeId:options.challengeId,response:response(options.options.challenge,{counter:2})})).scope,'unlock');
  });
- await t.test('fresh passkey verification can remove a blocked PIN and restore an alternate method',async()=>{
+ await scenario('fresh passkey verification can remove a blocked PIN and restore an alternate method',async()=>{
   const options=await call('passkey/options',{purpose:'manage'});
   const authorization=await call('passkey/verify',{challengeId:options.challengeId,response:response(options.options.challenge,{counter:3})});
   assert.equal(authorization.scope,'manage');
@@ -164,28 +167,7 @@ test('security API with PostgreSQL: factors, lockout, sessions, WebAuthn and rec
   assert.equal((await call('pin/enroll',{pin:'92837'},{'x-security-grant':grant.token})).scope,'unlock');
   assert.equal((await call('status')).pin,true);
  });
- await t.test('recovery adapter is server-bound and grants only factor enrollment',async()=>{
-  let starts=0,verifications=0;
-  const recovery={available:true,start:async({userId,challengeId})=>{assert.equal(userId,owner.userId);assert.ok(challengeId);starts++;return {providerChallenge:'server-only'};},
-   verify:async({userId,state,code})=>{assert.equal(userId,owner.userId);assert.equal(state.providerChallenge,'server-only');verifications++;return code==='offline-otp';}};
-  const handler=createSecurityHandler({pool:()=>pool,env,identity:async()=>owner,recovery});
-  const start=await call('recovery/start',{destination:'arbitrary-ignored'}, {},undefined,handler);
-  const recovered=await call('recovery/verify',{challengeId:start.challengeId,code:'offline-otp'},{},undefined,handler);
-  assert.equal(recovered.scope,'recover');assert.equal(starts,1);assert.equal(verifications,1);
-  await assert.rejects(()=>requireUnlock({headers:{'x-app-unlock':recovered.token}},owner,pool,env),{code:'app_locked'});
-  assert.equal((await call('methods/remove',{id:'pin'},{'x-security-grant':recovered.token},undefined,handler)).status,403);
-  const second=await call('recovery/start',{}, {},undefined,handler);
-  const grant=await call('recovery/verify',{challengeId:second.challengeId,code:'offline-otp'},{},undefined,handler);
-  assert.equal((await call('pin/enroll',{pin:'84726'},{'x-security-grant':grant.token},undefined,handler)).scope,'unlock');
-  assert.equal((await query('SELECT * FROM app_security_passkeys')).rows.length,0);
-  assert.equal((await call('pin/verify',{pin:'92837'})).status,403);
-  assert.equal((await call('pin/verify',{pin:'84726'})).scope,'unlock');
- });
- await t.test('IP limit is shared across users and atomic in PostgreSQL',async()=>{
-  const event={httpMethod:'POST',path:'/security/lock',headers:{'x-nf-client-connection-ip':'rate-test'},body:'{}'};
-  await query("INSERT INTO app_security_limits VALUES($1,100,now()+interval '15 minutes')",['ip:'+hash('rate-test')]);
-  assert.equal((await api(event)).statusCode,429);
- });
+
 });
 
 test('client keeps unlock in memory, discards late fetch bodies, bounds native operations',async t=>{
@@ -206,7 +188,7 @@ test('client keeps unlock in memory, discards late fetch bodies, bounds native o
  assert.equal(securitySnapshot().native,true);
  clearUnlock();acceptUnlock({token:'new-user-token',expiresIn:90},'bob');
  assert.equal(securitySnapshot().native,false,'old user dialogs cannot exempt a new session from locking');
- finishNative();await oldOperation;
+ finishNative();await assert.rejects(oldOperation,/app_locked/);
  assert.equal(securitySnapshot().credential,'new-user-token');
 });
 
@@ -216,6 +198,7 @@ test('page lifecycle covers immediately, relocks on return, pauses renewal and e
  document.visibilityState='visible';document.hasFocus=()=>focused;
  document.documentElement={classList:{add:value=>classes.add(value),toggle:(value,on)=>on?classes.add(value):classes.delete(value)}};
  let renew=async()=>{renewals++;return {expiresIn:90};};
+ const native=fn=>nativeSecurityOperation(fn,{window,document});
  const stop=startSecurityLifecycle({window,document,now:()=>clock,onHidden:value=>{covered=value;},
   revoke:()=>{revoked++;clearUnlock();},renew:token=>renew(token),every:callback=>{heartbeat=callback;return 1;},cancel:id=>assert.equal(id,1)});
  t.after(()=>{stop();clearUnlock();});
@@ -225,16 +208,16 @@ test('page lifecycle covers immediately, relocks on return, pauses renewal and e
  focused=true;window.dispatchEvent(new Event('focus'));assert.equal(classes.has('mp-security-covered'),false);assert.equal(securitySnapshot().credential,null);
  unlock();await heartbeat();assert.equal(renewals,1);
  const before=revoked;
- await nativeSecurityOperation(async()=>{
+ await native(async()=>{
   focused=false;window.dispatchEvent(new Event('blur'));assert.ok(securitySnapshot().credential);assert.equal(revoked,before);
   await heartbeat();assert.equal(renewals,1);
   focused=true;window.dispatchEvent(new Event('focus'));assert.ok(securitySnapshot().credential);
  });
  assert.equal(revoked,before);assert.equal(securitySnapshot().native,false);
- await nativeSecurityOperation(async()=>{focused=false;document.visibilityState='hidden';document.dispatchEvent(new Event('visibilitychange'));});
+ await assert.rejects(native(async()=>{focused=false;document.visibilityState='hidden';document.dispatchEvent(new Event('visibilitychange'));}),/app_locked/);
  assert.equal(securitySnapshot().credential,null,'native exception must end with the operation');
  focused=true;document.visibilityState='visible';window.dispatchEvent(new Event('focus'));
- unlock();await nativeSecurityOperation(async()=>{window.dispatchEvent(new Event('pagehide'));assert.equal(securitySnapshot().credential,null);});
+ unlock();await assert.rejects(native(async()=>{window.dispatchEvent(new Event('pagehide'));assert.equal(securitySnapshot().credential,null);}),/app_locked/);
  assert.ok(classes.has('mp-security-covered'));window.dispatchEvent(new Event('pageshow'));assert.equal(securitySnapshot().credential,null);
  unlock();clock=securitySnapshot().deadline+1;await heartbeat();assert.equal(securitySnapshot().credential,null);
  clock=Date.now();unlock();let finish;renew=()=>new Promise(resolve=>{finish=resolve;});

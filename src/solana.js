@@ -228,14 +228,12 @@ export async function sendUsdc(wallet, signAndSendTransaction, { to, usdc, memo 
   });
 
   if(securitySnapshot().epoch!==epoch)throw new Error('app_locked');
-  const result = await withRetry(() => {
-    if(securitySnapshot().epoch!==epoch)throw new Error('app_locked');
-    return nativeSecurityOperation(()=>signAndSendTransaction({
+  // Signing/sending is never replayed automatically, including native errors.
+  const result = await nativeSecurityOperation(()=>signAndSendTransaction({
       transaction,
       wallet,
       chain: SOLANA.chain,
     }));
-  });
   if(securitySnapshot().epoch!==epoch)throw new Error('app_locked');
 
   const hash = normalizeSignature(result);

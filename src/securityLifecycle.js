@@ -4,29 +4,33 @@ import {securitySnapshot,observeSecurity,extendUnlock} from './securitySession.j
 // deterministic event target and clock, without authenticating a real account.
 export function startSecurityLifecycle({window,document,revoke,renew,onHidden,now=Date.now,
  every=setInterval,cancel=clearInterval}) {
- const hidden=()=>document.visibilityState!=='visible' || !document.hasFocus();
+ let left=false;
+ const hidden=()=>left || document.visibilityState!=='visible' || !document.hasFocus();
  const cover=()=>{
-  const covered=hidden();onHidden(covered);
+  const covered=hidden() || securitySnapshot().nativeState==='waiting_focus';onHidden(covered);
   document.documentElement.classList.toggle('mp-security-covered',covered);
   const state=securitySnapshot();
   if(covered && !state.native)revoke();
   else if(state.credential && now()>=state.deadline)revoke();
  };
- const leave=()=>{document.documentElement.classList.add('mp-security-covered');onHidden(true);revoke();};
+ const leave=()=>{left=true;document.documentElement.classList.add('mp-security-covered');onHidden(true);revoke();};
+ const show=()=>{left=false;cover();};
  const bindings=[[document,'visibilitychange',cover],[window,'blur',cover],[window,'focus',cover],
-  [window,'pagehide',leave],[window,'pageshow',cover],[window,'mp-security-lock',revoke]];
+  [window,'pagehide',leave],[window,'pageshow',show],[window,'mp-security-lock',revoke]];
  for(const [target,name,listener] of bindings)target.addEventListener(name,listener);
  let nativeWasActive=securitySnapshot().native,pending=false;
  const stopObserve=observeSecurity(()=>{
   const state=securitySnapshot();
   const ended=nativeWasActive && !state.native;nativeWasActive=state.native;
   if(ended && hidden() && state.credential)revoke();
+  const covered=hidden() || state.nativeState==='waiting_focus';
+  onHidden(covered);document.documentElement.classList.toggle('mp-security-covered',covered);
  });
  const timer=every(async()=>{
   const state=securitySnapshot();
   if(!state.credential)return;
   if(now()>=state.deadline){revoke();return;}
-  if(hidden() || pending)return;
+  if(hidden() || state.native || pending)return;
   const epoch=state.epoch;pending=true;
   try {
    const result=await renew(state.credential);

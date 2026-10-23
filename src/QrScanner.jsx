@@ -61,7 +61,8 @@ export default function QrScanner({ onDecode, onCameraError, onTorchSupport, fil
     };
 
     nativeSecurityOperation(()=>navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false }))
+      .getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false }),
+      {onDiscard:stream=>stream.getTracks().forEach(track=>track.stop())})
       .then((stream) => {
         if (cancelled) {
           stream.getTracks().forEach((track) => track.stop());

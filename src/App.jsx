@@ -2078,6 +2078,7 @@ function Voice({
   // Cierra la escucha con lo oído: lo interpreta, o vuelve a reposo si no hubo voz.
   const completeSession = useCallback((s) => {
     if (!s || s.completed) return;
+    if(s.permissionPending){s.finishAfterPermission=true;return;}
     s.completed = true;
     clearTimeout(s.timer);
     if (sessionRef.current === s) sessionRef.current = null;
@@ -2164,10 +2165,19 @@ function Voice({
       // Exempt only the permission request, ending when capture actually starts.
       let permissionDone;
       const permission=new Promise(resolve=>{permissionDone=resolve;});
-      nativeSecurityOperation(()=>permission);
+      s.permissionPending=true;
+      const permissionResult=nativeSecurityOperation(()=>permission).then(()=>{
+        s.permissionPending=false;
+        if(s.finishAfterPermission)completeSession(s);
+      });
+      permissionResult.catch(()=>{
+        s.completed=true;clearTimeout(s.timer);
+        try{rec.abort();}catch{}
+        if(sessionRef.current===s)cancel();
+      });
       rec.onstart=()=>permissionDone();
       rec.onresult = (e) => {
-        if (s.completed) return;
+        if (s.completed || s.permissionPending) return;
         s.segment = joinSpeechResults(e.results);
         s.lastAt = Date.now();
         setTranscript(s.text());
@@ -2192,6 +2202,7 @@ function Voice({
       };
       rec.onend = () => {
         permissionDone();
+        permissionResult.then(()=>{
         if (s.completed) return;
         if (s.finishing) return completeSession(s);
         // El navegador cortó solo: seguimos escuchando hasta la pausa propia o el tope.
@@ -2206,6 +2217,7 @@ function Voice({
         } catch {
           completeSession(s);
         }
+        },()=>{});
       };
       try {rec.start();}catch(error){permissionDone();throw error;}
     };

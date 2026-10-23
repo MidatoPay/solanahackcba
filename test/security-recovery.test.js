@@ -6,6 +6,20 @@ import {createRecoveryService} from '../netlify/functions/lib/securityRecovery.j
 import {requireUnlock} from '../netlify/functions/lib/securityAuth.js';
 import {hash,createPin} from '../netlify/functions/lib/securityCore.js';
 
+test('delivery diagnostics classify provider failures without exposing email, OTP, key or message',async()=>{
+ for(const [status,data,reason] of [
+  [403,{name:'validation_error',message:'The private.example domain is not verified. Please, add and verify your domain.'},'sender_unverified'],
+  [403,{name:'validation_error',message:'You can only send testing emails to your own email address private@example.test'},'test_recipient_restricted'],
+  [401,{name:'validation_error',message:'API key is invalid'},'credentials'],
+  [429,{name:'rate_limit_exceeded'},'rate_limited'],
+ ]) {
+  const logs=[],service=createRecoveryService({env:securityEnv,log:(...args)=>logs.push(args),request:async()=>new Response(JSON.stringify(data),{status})});
+  await assert.rejects(service.send({id:'challenge',email:'private@example.test',code:'847261',purpose:'recovery'}),error=>error.code==='recovery_delivery_failed');
+  assert.deepEqual(logs,[['security_recovery_delivery_failed',{reason,httpStatus:status}]]);
+  assert.doesNotMatch(JSON.stringify(logs),/private|847261|API key/);
+ }
+});
+
 async function recoveryFixture(t,options={}) {
  const messages=[];let email='alice@example.test',verified=true,failure=false,onSend;
  const recovery=createRecoveryService({env:securityEnv,getUser:async()=>({email:email?{address:email}:null,

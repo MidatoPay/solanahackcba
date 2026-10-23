@@ -34,7 +34,7 @@ function browser(t) {
  return {window,document,blur(){focused=false;window.dispatchEvent(new Event('blur'));},focus(){focused=true;window.dispatchEvent(new Event('focus'));}};
 }
 for(const enroll of [true,false])test(`React prepares ${enroll?'registration':'authentication'} before every gesture, including cancellation/retry`,async t=>{
- browser(t);let tokenCalls=0,nativeCalls=0,optionsCalls=0,finish;
+ const browserState=browser(t);let tokenCalls=0,nativeCalls=0,optionsCalls=0,finish;
  const getToken=async()=>{tokenCalls++;return 'fixture-token';};
  globalThis.securityReact={authenticator:()=>{nativeCalls++;return new Promise((resolve,reject)=>{finish={resolve,reject};});},sendCode:async()=>{},linkWithCode:async()=>{}};
  globalThis.fetch=async(path)=>new Response(JSON.stringify(path.endsWith('/status')?
@@ -46,6 +46,10 @@ for(const enroll of [true,false])test(`React prepares ${enroll?'registration':'a
  globalThis.securityReact.renderer=renderer;await flush();
  const button=()=>renderer.root.findAllByType('button').find(b=>b.props.onClick?.name==='passkey');
  assert.equal(button().props.disabled,false);assert.ok(optionsCalls>0);
+ act(()=>browserState.blur());await flush();assert.equal(button().props.disabled,true);
+ act(()=>browserState.focus());await flush();
+ await act(async()=>renderer.root.findAllByType('button').find(b=>b.children.join('')==='Retry').props.onClick());await flush();
+ assert.equal(button().props.disabled,false);
  for(let i=0;i<3;i++) {
   const before=tokenCalls;
   act(()=>{button().props.onClick();assert.equal(nativeCalls,i+1);assert.equal(tokenCalls,before,'no token/network work before authenticator in click stack');});
@@ -56,12 +60,13 @@ for(const enroll of [true,false])test(`React prepares ${enroll?'registration':'a
 });
 test('React gate mounts no private effects until factor and recovery contact are complete; identity changes relock',async t=>{
  const browserState=browser(t);let privateMounts=0,status={enforced:true,pin:true,passkeys:[],recoveryReady:false,recoveryAvailable:true};
- const getToken=async()=> 'fixture-token';
+ const getToken=async()=> 'fixture-token';let finishEmail;
+ const emailDelivery=new Promise(resolve=>{finishEmail=resolve;});
  globalThis.securityReact={privy:{ready:true,authenticated:true,user:{id:'alice'},getAccessToken:getToken,logout:async()=>{}},sendCode:async()=>{},linkWithCode:async()=>{}};
- globalThis.fetch=async(path)=>new Response(JSON.stringify(path.endsWith('/status')?status:
+ globalThis.fetch=async(path)=>{if(path.endsWith('/recovery-email/start'))await emailDelivery;return new Response(JSON.stringify(path.endsWith('/status')?status:
   path.endsWith('/pin/verify')?{scope:'manage',token:'manage',expiresIn:300}:
   path.endsWith('/recovery-email/start')?{challengeId:'email',email:'a***@example.test'}:
-  path.endsWith('/recovery-email/verify')?(status={...status,recoveryReady:true},{scope:'unlock',token:'unlock',expiresIn:90}):{}));
+  path.endsWith('/recovery-email/verify')?(status={...status,recoveryReady:true},{scope:'unlock',token:'unlock',expiresIn:90}):{}));};
  function Private(){React.useEffect(()=>{privateMounts++;},[]);return React.createElement('p',null,'PRIVATE');}
  const element=()=>React.createElement(LanguageProvider,null,React.createElement(SecurityGate,{loginScreen:React.createElement('p',null,'LOGIN')},React.createElement(Private)));
  let renderer;await act(async()=>{renderer=TestRenderer.create(element());});globalThis.securityReact.renderer=renderer;await flush();
@@ -71,7 +76,16 @@ test('React gate mounts no private effects until factor and recovery contact are
  act(()=>renderer.root.findByProps({id:'security-pin'}).props.onChange({target:{value:'03927'}}));
  await act(async()=>renderer.root.findByType('form').props.onSubmit({preventDefault(){}}));await flush();
  assert.equal(privateMounts,0);assert.match(text(renderer),/Confirm recovery email/);
- await act(async()=>renderer.root.findAllByType('button').find(b=>b.children.join('')==='Confirm recovery email').props.onClick());await flush();
+ // Opening the inbox while already locked must not discard the verified
+ // management grant or the email challenge; no private access exists yet.
+ act(()=>browserState.blur());await flush();
+ assert.equal(privateMounts,0);assert.match(text(renderer),/Confirm recovery email/);
+ act(()=>browserState.focus());await flush();
+ act(()=>{renderer.root.findAllByType('button').find(b=>b.children.join('')==='Confirm recovery email').props.onClick();});
+ act(()=>{browserState.blur();browserState.document.visibilityState='hidden';browserState.document.dispatchEvent(new Event('visibilitychange'));});await flush();
+ await act(async()=>finishEmail());await flush();
+ assert.equal(renderer.root.findAllByProps({autoComplete:'one-time-code'}).length,1);
+ act(()=>{browserState.document.visibilityState='visible';browserState.document.dispatchEvent(new Event('visibilitychange'));browserState.focus();});await flush();
  act(()=>renderer.root.findByProps({autoComplete:'one-time-code'}).props.onChange({target:{value:'123456'}}));
  await act(async()=>renderer.root.findByType('form').props.onSubmit({preventDefault(){}}));await flush();
  assert.equal(privateMounts,1);assert.match(text(renderer),/PRIVATE/);

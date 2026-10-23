@@ -5,7 +5,7 @@ import {getPaymentPrivy} from './paymentRuntime.js';
 
 export const recoveryReady=user=>Boolean(user.recovery_email && user.recovery_verified_at);
 export const maskEmail=email=>email?email.slice(0,1)+'***@'+email.split('@')[1]:null;
-export function createRecoveryService({env=process.env,getUser=id=>getPaymentPrivy().getUser(id),request=fetch}={}) {
+export function createRecoveryService({env=process.env,getUser=id=>getPaymentPrivy().getUser(id),request=fetch,log=console.error}={}) {
  const available=Boolean(env.RESEND_API_KEY && env.SECURITY_RECOVERY_FROM && env.SECURITY_RECOVERY_PEPPER?.length>=32 && env.SECURITY_RECOVERY_PEPPER!==env.SECURITY_PIN_PEPPER);
  const digest=(code,{id,userId,sessionId,purpose,version})=>{
   if(!available)throw fail('recovery_unavailable',503);
@@ -28,13 +28,27 @@ export function createRecoveryService({env=process.env,getUser=id=>getPaymentPri
   },
   async send({id,email,code,purpose}) {
    if(!available)throw fail('recovery_unavailable',503);
+   let httpStatus,reason='connection';
    try {
     const response=await request('https://api.resend.com/emails',{method:'POST',signal:AbortSignal.timeout(8000),
      headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json','Idempotency-Key':'security-'+id},
      body:JSON.stringify({from:env.SECURITY_RECOVERY_FROM,to:[email],subject:purpose==='recovery'?'Recuperá tu acceso a MidatoPay':'Confirmá tu email de recuperación',
       text:`Tu código de MidatoPay es ${code}. Vence en cinco minutos. No lo compartas. Si no lo solicitaste, ignorá este mensaje.`})});
-    if(!response.ok || !(await response.json()).id)throw new Error();
-   }catch{throw fail('recovery_delivery_failed',503);}
+    httpStatus=response.status;
+    const data=await response.json();
+    if(!response.ok) {
+     reason=response.status===429?'rate_limited':response.status>=500?'provider_unavailable':'provider_rejected';
+     if(['missing_api_key','restricted_api_key','suspended_api_key','invalid_permission'].includes(data.name) || /API key is invalid/i.test(data.message || ''))reason='credentials';
+     if(/domain.+not verified|verify your domain/i.test(data.message || ''))reason='sender_unverified';
+     if(/only send testing emails/i.test(data.message || ''))reason='test_recipient_restricted';
+     throw new Error();
+    }
+    if(typeof data.id!=='string' || !data.id){reason='invalid_response';throw new Error();}
+   }catch(error){
+    if(error?.name==='TimeoutError' || error?.name==='AbortError')reason='timeout';
+    log('security_recovery_delivery_failed',{reason,...(Number.isInteger(httpStatus)?{httpStatus}:{})});
+    throw fail('recovery_delivery_failed',503);
+   }
   },
  };
 }

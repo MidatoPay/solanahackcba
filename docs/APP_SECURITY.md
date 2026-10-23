@@ -89,6 +89,12 @@ La excepción nativa dura como máximo dos minutos y no alarga el desbloqueo. No
 repiten firmas ni envíos automáticamente. El mismo wrapper cubre passkeys, permisos
 usados por la app y diálogos de Privy.
 
+Si el panel ya está bloqueado, cambiar de ventana para leer el email conserva en
+memoria el permiso temporal y el desafío de configuración/recuperación. No concede
+acceso privado ni extiende sus vencimientos; el servidor vuelve a validar sesión,
+propósito y permiso. `pagehide`, bloqueo explícito o cambio de identidad/sesión
+siguen invalidando la operación. Las opciones WebAuthn se invalidan también al perder foco.
+
 El panel prepara token y opciones WebAuthn antes del toque. El manejador llama al
 autenticador antes de cualquier await o petición. Opciones solo en memoria, ligadas a
 token de sesión y generación, se invalidan por uso, cancelación, bloqueo, cambio de
@@ -98,6 +104,11 @@ El service worker sigue almacenando únicamente `/offline.html`; sus pruebas exc
 explícitamente `/security/*` y `/.netlify/functions/security/*`.
 
 ## Configuración, staging y piloto
+
+En desarrollo, `npm run dev:full` inicia Vite en `http://localhost:8888` y Netlify
+Functions en `9999`, con los proxies de API dirigidos a Functions. Se evita pasar los
+módulos de Vite por la redirección SPA de Netlify Dev. El watcher excluye `.netlify`
+para no observar ni bloquear los archivos generados de Functions en Windows.
 
 1. Node 22 o posterior (build y Functions declarados en `netlify.toml`). Ejecutar `npm ci`.
 2. Configurar por entorno, solo servidor: `SECURITY_PIN_PEPPER`,

@@ -1,10 +1,41 @@
-# Evidencia de seguridad — 2026-10-22
+# Evidencia de seguridad — 2026-10-23
 
 Rama: `fix/app-security-recovery-mobile`, base `origin/main` 97a6c00 confirmada
 mediante fetch. Implementación local y verificaciones automáticas completadas.
 **Aceptación para producción pendiente de staging real y dispositivos físicos.**
-No se desplegó, migró una base remota, configuró secretos remotos ni enviaron emails
-reales. No se firmaron ni enviaron transacciones financieras.
+El 22 se verificó con fixtures. El 23 se aplicó la migración a la base remota
+configurada, con autorización explícita, y se completó la confirmación real por
+email desde localhost. No se desplegó ni se firmaron/enviaron transacciones financieras.
+
+## Circuito real en Edge — 2026-10-23
+
+- La inspección identificó las seis columnas de recuperación ausentes; la migración
+  se aplicó y una consulta posterior confirmó que no faltaba ninguna.
+- El usuario verificó su PIN existente en la sesión real de Privy. El servidor tomó
+  el destinatario de Privy, envió el desafío por Resend y respondió `200`.
+- Se confirmó manualmente el OTP en Edge: `recovery-email/verify` respondió `200`,
+  se abrió la app y las consultas privadas y renovaciones respondieron `200`.
+- El contacto quedó guardado: tras bloquearse, el panel muestra el email enmascarado,
+  permite recuperación y solicita el factor habitual; ya no repite el alta del contacto.
+- Se corrigió la pérdida del permiso temporal y del desafío al salir a leer el inbox
+  mientras el panel ya estaba bloqueado. La regresión falló antes de la corrección y
+  pasa después, incluso si la respuesta de envío llega con la página oculta. Las
+  opciones WebAuthn se invalidan al perder foco; el acceso privado continúa revocándose.
+- Resend rechazó el remitente original sin dominio verificado y el remitente de pruebas
+  por restricción de destinatario. El usuario configuró `security.midatopay.com`;
+  se verificó su estado y se configuró localmente `acceso@security.midatopay.com`.
+  La clave actual tiene acceso de envío. El agente no modificó registros DNS.
+- La primera lectura de `/balance` agotó el timeout local de 30 segundos. Una consulta
+  de solo lectura a la wallet principal/RPC devnet respondió correctamente; después
+  se observó el saldo en la app. No se cambiaron redes, wallets, importes ni autorizaciones.
+- El PIN real se conservó. El registro físico de passkeys y el reemplazo real del PIN
+  mediante recuperación no se ejecutaron sobre esta cuenta; sus recorridos están
+  cubiertos por fixtures y siguen requiriendo validación física/staging.
+
+Evidencia local: `.netlify/security-live-contact.jpg` (contacto enmascarado),
+`.netlify/security-circuit-tests.log`, `.netlify/security-circuit-react.log`,
+`.netlify/security-circuit-build.log`, `.netlify/security-circuit-functions.log`
+y `.netlify/security-circuit-edge.log`. No contienen códigos o claves reales.
 
 ## Resultado automático
 
@@ -12,13 +43,15 @@ Entorno: Windows, Node 24.19.0. Runtime de despliegue declarado: Node 22.
 
 | Comprobación | Resultado observado |
 | --- | --- |
-| `npm test` | 227 pruebas, 227 aprobadas, 0 omitidas/fallidas |
+| `npm test` | 228 pruebas, 228 aprobadas, 0 omitidas/fallidas |
 | Ciclo de vida/React después del ajuste final de vigencia | 31 pruebas aprobadas |
 | `npm run build` | Aprobado; conserva avisos de chunks >500 kB y opción obsoleta de Vite |
 | `npm run functions:check` | 22 Functions empaquetadas; endpoints protegidos rechazan anónimos |
 | `npm run deps:check` | Exit 0 con umbral high; 21 vulnerabilidades moderadas transitivas |
 | `npm run test:security:baseline` | Las cuatro regresiones fallan por aserción contra 1734064 |
 | `npm run test:security:browser` | Chrome 155.0.8059.86, headless, viewport 390×844, aprobado |
+| `SECURITY_TEST_BROWSER=msedge npm run test:security:browser` | Edge 155.0.4283.62, 390×844: diez desbloqueos, recuperación, reemplazo de PIN, cancelaciones y sesión; aprobado con fixtures |
+| React/startup tras el último ajuste de mensajes | 11 pruebas aprobadas |
 | Migración repetida sobre datos existentes | PGlite/PostgreSQL: dos aplicaciones, factores/contacto sin cambios |
 | PWA, instalación y redirecciones | Incluidas en la suite completa; exclusión explícita de seguridad del cache |
 

@@ -37,7 +37,7 @@ export function SecurityPanel({getToken,onUnlocked,onClose,manage=false}) {
  const headers=grant?{'X-Security-Grant':grant.token}:{};
  const load=useCallback(async()=>{
   const result=await securityApi('status',getToken);
-  if(mounted.current){setStatus(result);if(!manage && result.enforced===false)complete.current({scope:'bypass'});}
+  if(mounted.current){setStatus(result);setError('');if(!manage && result.enforced===false)complete.current({scope:'bypass'});}
   return result;
  },[getToken,manage]);
  useEffect(()=>{mounted.current=true;load().catch(()=>{if(mounted.current)setError(c.error);});return()=>{mounted.current=false;prepared.current=null;};},[load,c.error]);
@@ -61,6 +61,11 @@ export function SecurityPanel({getToken,onUnlocked,onClose,manage=false}) {
   if(!status || view!=='choose' || busy || (contactPending && canContact) || (!canEnroll && !status.passkeys.length))return;
   const epoch=securitySnapshot().epoch;
   const stop=observeSecurity(()=>{if(securitySnapshot().epoch!==epoch){cancelled=true;prepared.current=null;setPreparation('expired');}});
+  const invalidate=()=>{
+   if(document.visibilityState==='visible' && document.hasFocus())return;
+   cancelled=true;prepared.current=null;clearTimeout(timer);setPreparation('expired');
+  };
+  window.addEventListener('blur',invalidate);document.addEventListener('visibilitychange',invalidate);
   setPreparation('preparing');
   (async()=>{
    const token=await getToken();
@@ -69,7 +74,7 @@ export function SecurityPanel({getToken,onUnlocked,onClose,manage=false}) {
    prepared.current={...result,token,epoch,enroll:canEnroll,expiresAt:Date.now()+Math.min(result.expiresIn || 300,240)*1000};
    setPreparation('ready');timer=setTimeout(()=>{prepared.current=null;setPreparation('expired');},Math.min(result.expiresIn || 300,240)*1000);
   })().catch(e=>{if(!cancelled && mounted.current){setPreparation('failed');if(e.retryAfter)setRetryAt(Date.now()+e.retryAfter*1000);}});
-  return()=>{cancelled=true;clearTimeout(timer);stop();prepared.current=null;};
+  return()=>{cancelled=true;clearTimeout(timer);stop();prepared.current=null;window.removeEventListener('blur',invalidate);document.removeEventListener('visibilitychange',invalidate);};
  },[getToken,status,view,busy,grant,canEnroll,contactPending,canContact,manage,supported,attempt]);
  const act=async operation=>{
   if(running.current || seconds)return;
@@ -117,7 +122,7 @@ export function SecurityPanel({getToken,onUnlocked,onClose,manage=false}) {
  };
  const disabled=busy || seconds>0;
  return <div className="mp-security"><section aria-label={c.title}>
-  <img src="/logo/logo.png" alt="MidatoPay" width="170"/><h1>{manage?c.title:initial?c.setup:c.locked}</h1>
+  <img src="/logo/logo.png" alt="MidatoPay" width="170"/><h1>{manage?c.title:contactPending?c.completeSetup:grant?.scope==='recover'?c.resetMethod:initial?c.setup:c.locked}</h1>
   {!status?<><p role="status">{error || c.loading}</p><button onClick={()=>load().catch(()=>setError(c.error))}>{c.retry}</button></>:
    ['create','confirm','pin'].includes(view)?<PinEntry key={view} copy={c} busy={disabled}
     locked={view==='pin' && status.blockedUntil && new Date(status.blockedUntil)>new Date()}
@@ -134,7 +139,7 @@ export function SecurityPanel({getToken,onUnlocked,onClose,manage=false}) {
     <button disabled={disabled || code.length!==6}>{c.continue}</button><button type="button" disabled={disabled} onClick={()=>startCode(challenge.purpose)}>{c.resend}</button>
     <button type="button" disabled={busy} onClick={()=>{setCode('');setView('choose');}}>{c.back}</button>
    </form>:<>
-    {contactPending && <p>{c.contactRequired}</p>}
+    {contactPending && <p>{canContact?c.confirmContactInfo:c.contactRequired}</p>}
     {contactPending && canContact?<button disabled={disabled || !status.recoveryAvailable} onClick={()=>startCode('recovery-email')}>{c.confirmEmail}</button>:<>
      <p>{canEnroll?c.choose:manage?c.manageInfo:c.verify}</p>
      {(canEnroll || status.passkeys.length>0) && <>

@@ -4,6 +4,7 @@ export const securityCopy={
  zh:{title:'安全',setup:'保护您的账户',locked:'解锁 MidatoPay',choose:'选择通行密钥或五位数字 PIN 以继续。',device:'使用设备安全验证',deviceInfo:'设备将选择面容、指纹或解锁码。MidatoPay 不会接收生物识别数据。',pin:'使用 PIN',create:'创建五位数字 PIN',confirm:'确认 PIN',verify:'验证当前方式',continue:'继续',erase:'删除',back:'返回',recover:'恢复访问',unavailable:'自动恢复暂不可用。请使用其他已注册的方式。',error:'验证失败。请重试或使用其他已注册的方式。',incorrect_pin:'PIN 错误。五次失败后将锁定十五分钟。',pin_blocked:'PIN 已锁定十五分钟。请使用通行密钥或恢复功能。',invalid_pin:'请输入五位数字，避免相同数字和升降序列。',mismatch:'两次 PIN 不一致。',addPin:'添加或更改 PIN',addDevice:'添加通行密钥',remove:'移除',done:'完成',loading:'加载中…',logout:'退出登录',retry:'重试',digits:'PIN：五个隐藏数字',recoveryCode:'恢复验证码',sent:'请输入发送至已验证邮箱或手机的新验证码。',manageInfo:'请重新验证已注册的方式以更改安全设置。',last_factor_required:'至少保留一种已注册的方式。',lock:'立即锁定'},
 };
 Object.assign(securityCopy.es,{
+ completeSetup:'Completá la configuración de seguridad',resetMethod:'Elegí un nuevo método de seguridad',confirmContactInfo:'Enviaremos un código al email verificado de tu cuenta de Privy. Confirmalo una sola vez para completar la configuración.',
  unavailable:'El servicio de email no está disponible. Reintentá más tarde o usá un factor registrado.',sent:'Ingresá el código de seis dígitos enviado a tu email. Vence en cinco minutos.',
  email:'Email de recuperación',contactRequired:'Confirmá un email de recuperación para completar la seguridad. Si ya tenés un factor, verificalo primero.',
  confirmEmail:'Confirmar email de recuperación',updateEmail:'Confirmar email actual de Privy',linkInfo:'Vinculá un email a tu cuenta. Privy enviará un código para verificarlo.',
@@ -14,6 +15,7 @@ Object.assign(securityCopy.es,{
  recovery_delivery_failed:'No se pudo enviar el email. Reintentá más tarde.',security_rate_limited:'Alcanzaste el límite de intentos.',factor_verification_required:'Volvé a verificar tu factor actual.',app_locked:'La sesión se bloqueó. Volvé a intentarlo.',
 });
 Object.assign(securityCopy.en,{
+ completeSetup:'Complete security setup',resetMethod:'Choose a new security method',confirmContactInfo:'We will send a code to the verified email on your Privy account. Confirm it once to complete setup.',
  unavailable:'Email service is unavailable. Try later or use a registered factor.',sent:'Enter the six-digit code sent to your email. It expires in five minutes.',
  email:'Recovery email',contactRequired:'Confirm a recovery email to complete security setup. Verify your existing factor first, if you have one.',
  confirmEmail:'Confirm recovery email',updateEmail:'Confirm current Privy email',linkInfo:'Link an email to your account. Privy will send a verification code.',
@@ -24,6 +26,7 @@ Object.assign(securityCopy.en,{
  security_rate_limited:'Attempt limit reached.',factor_verification_required:'Verify your current factor again.',app_locked:'Session locked. Try again.',
 });
 Object.assign(securityCopy.zh,{
+ completeSetup:'完成安全设置',resetMethod:'选择新的安全验证方式',confirmContactInfo:'我们会向 Privy 账户已验证的邮箱发送验证码。确认一次即可完成设置。',
  unavailable:'邮件服务暂不可用。请稍后重试或使用已注册的验证方式。',sent:'请输入发送到邮箱的六位验证码，有效期五分钟。',email:'恢复邮箱',contactRequired:'请确认恢复邮箱。如已有验证方式，请先完成验证。',
  confirmEmail:'确认恢复邮箱',updateEmail:'确认当前 Privy 邮箱',linkInfo:'关联邮箱，Privy 将发送验证码。',linkCode:'请输入 Privy 验证码，然后确认恢复邮箱。',resend:'重新发送',wait:'重试等待',
  preparing:'正在准备设备验证…',expired:'验证已过期，请重试。',failed:'准备失败，请重试或使用 PIN。',unsupported:'浏览器不支持通行密钥，请使用 PIN。',cancelled:'已取消，请重试或使用 PIN。',

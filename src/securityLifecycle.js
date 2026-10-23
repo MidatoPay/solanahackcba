@@ -10,7 +10,9 @@ export function startSecurityLifecycle({window,document,revoke,renew,onHidden,no
   const covered=hidden() || securitySnapshot().nativeState==='waiting_focus';onHidden(covered);
   document.documentElement.classList.toggle('mp-security-covered',covered);
   const state=securitySnapshot();
-  if(covered && !state.native)revoke();
+  // Reading an email while the setup panel is already locked must preserve
+  // its short-lived, server-checked grant and OTP challenge in memory.
+  if(covered && !state.native && (state.credential || state.bypass))revoke();
   else if(state.credential && now()>=state.deadline)revoke();
  };
  const leave=()=>{left=true;document.documentElement.classList.add('mp-security-covered');onHidden(true);revoke();};

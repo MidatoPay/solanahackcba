@@ -2,9 +2,10 @@ import { generateRegistrationOptions,verifyRegistrationResponse,generateAuthenti
 import { getPaymentDb,transaction,json,errorResponse } from './lib/paymentRuntime.js';
 import { authenticateIdentity } from './lib/securityAuth.js';
 import { createPin,verifyPin,opaque,hash,header,fail,webauthnConfig } from './lib/securityCore.js';
-import { recoveryAdapter } from './lib/securityRecovery.js';
+import {createRecoveryService,recoveryAction,recoveryReady,maskEmail} from './lib/securityRecovery.js';
 import { PaymentError } from './lib/paymentCore.js';
 import {authenticationLimit,takeLimit,rateLimited} from './lib/securityLimits.js';
+import {securityEnforced} from './lib/securityPolicy.js';
 
 function securityError(error) {
  const response=errorResponse(error);
@@ -12,7 +13,7 @@ function securityError(error) {
  return response;
 }
 
-export function createSecurityHandler({identity=authenticateIdentity,pool=getPaymentDb,env=process.env,recovery=recoveryAdapter,
+export function createSecurityHandler({identity=authenticateIdentity,pool=getPaymentDb,env=process.env,recovery=createRecoveryService({env}),metric=name=>console.info('security_metric',{name}),
  webauthn={generateRegistrationOptions,verifyRegistrationResponse,generateAuthenticationOptions,verifyAuthenticationResponse}}={}) {
  return async event=>{
   try {
@@ -26,6 +27,7 @@ export function createSecurityHandler({identity=authenticateIdentity,pool=getPay
    if(!body || typeof body!=='object' || Array.isArray(body))throw fail('invalid_json');
    // Trust only Netlify's edge-provided client address, never X-Forwarded-For.
    if(event.httpMethod==='POST' && !['renew','lock'].includes(action))await authenticationLimit(dbPool,owner,event);
+   const email=action==='recovery-email/start'?await recovery.verifiedEmail(owner.userId):null;
    const result=await transaction(async db=>{
     await db.query('INSERT INTO app_security_users(user_id) VALUES($1) ON CONFLICT DO NOTHING',[owner.userId]);
     const {rows:[user]}=await db.query('SELECT * FROM app_security_users WHERE user_id=$1 FOR UPDATE',[owner.userId]);
@@ -38,14 +40,17 @@ export function createSecurityHandler({identity=authenticateIdentity,pool=getPay
       VALUES($1,$2,$3,$4,now()+$5*interval '1 second',now()+interval '12 hours')`,[hash(token),...params,scope,ttl]);
      return {token,scope,expiresIn:ttl};
     }
-    async function grant(allowed=['manage','recover']) {
-     const token=header(event,'x-security-grant');
-     const {rows}=await db.query(`DELETE FROM app_security_sessions WHERE token_hash=$1 AND user_id=$2 AND privy_session=$3
-      AND scope IN ('manage','recover') AND NOT revoked AND expires_at>now() RETURNING scope`,[hash(token),...params]);
-     if(!rows.length || !allowed.includes(rows[0].scope))throw fail('factor_verification_required',403);
+    async function grant(allowed=['manage','recover'],consume=true,tokenHash=hash(header(event,'x-security-grant'))) {
+     const {rows}=await db.query(`SELECT scope FROM app_security_sessions WHERE token_hash=$1 AND user_id=$2 AND privy_session=$3
+      AND scope=ANY($4::text[]) AND NOT revoked AND expires_at>now() AND absolute_expires_at>now() FOR UPDATE`,[tokenHash,...params,allowed]);
+     if(!rows.length)throw fail('factor_verification_required',403);
+     if(consume)await db.query('DELETE FROM app_security_sessions WHERE token_hash=$1',[tokenHash]);
      return rows[0].scope;
     }
-    async function authorizeEnrollment() {return total?await grant():'initial';}
+    async function authorizeEnrollment(consume=true) {
+     if(!recoveryReady(user))throw fail('recovery_contact_required',409);
+     return total?await grant(undefined,consume):'initial';
+    }
     async function enrolled(mode) {
      await db.query('DELETE FROM app_security_challenges WHERE user_id=$1',[owner.userId]);
      await db.query('UPDATE app_security_sessions SET revoked=true WHERE user_id=$1',[owner.userId]);
@@ -71,8 +76,15 @@ export function createSecurityHandler({identity=authenticateIdentity,pool=getPay
     // Return expected failures inside the transaction so attempts and consumed
     // challenges commit even when verification fails. Unexpected errors roll back.
     try {
-     if(action==='status')return {enforced:env.SECURITY_ENFORCED!=='false',pin:Boolean(user.pin),
-      passkeys:keys.map(key=>({id:key.credential_id})),blockedUntil:user.blocked_until,recoveryAvailable:recovery.available};
+     if(action==='status')return {enforced:securityEnforced(env,owner.userId),pin:Boolean(user.pin),
+      passkeys:keys.map(key=>({id:key.credential_id})),blockedUntil:user.blocked_until,recoveryAvailable:recovery.available,
+      recoveryReady:recoveryReady(user),recoveryEmail:maskEmail(user.recovery_email)};
+     if(['recovery/start','recovery/verify','recovery-email/start','recovery-email/verify'].includes(action))
+      return await recoveryAction({action,db,user,owner,total,body,event,service:recovery,email,grant,issue});
+     if(action==='telemetry/dialog') {
+      if(!['cancelled','interrupted'].includes(body.reason))throw fail('invalid_telemetry');
+      metric('dialog_'+body.reason);return {recorded:true};
+     }
      if(action==='pin/enroll') {
       const verifier=await createPin(body.pin,env),mode=await authorizeEnrollment();
       if(mode==='recover')await resetFactors();
@@ -89,15 +101,16 @@ export function createSecurityHandler({identity=authenticateIdentity,pool=getPay
        throw fail('incorrect_pin',403);
       }
       await db.query('UPDATE app_security_users SET failed_attempts=0,blocked_until=NULL WHERE user_id=$1',[owner.userId]);
-      return issue(body.purpose==='manage'?'manage':'unlock');
+      return issue(body.purpose==='manage' || !recoveryReady(user)?'manage':'unlock');
      }
      if(action==='passkey/register-options') {
-      const mode=await authorizeEnrollment(),{rpID}=webauthnConfig(env);
+      const mode=await authorizeEnrollment(false),{rpID}=webauthnConfig(env);
       const options=await webauthn.generateRegistrationOptions({rpName:'MidatoPay',rpID,userName:owner.userId,
        userID:new Uint8Array(Buffer.from(hash(owner.userId),'hex')),attestationType:'none',
        excludeCredentials:keys.filter(k=>k.rp_id===rpID).map(k=>({id:k.credential_id,transports:k.credential.transports})),
        authenticatorSelection:{residentKey:'preferred',userVerification:'required'}});
-      return {options,challengeId:await challenge('register',{challenge:options.challenge,mode,rpID})};
+      return {options,expiresIn:300,challengeId:await challenge('register',{challenge:options.challenge,mode,rpID,
+       grantHash:mode==='initial'?null:hash(header(event,'x-security-grant'))})};
      }
      if(action==='passkey/register') {
       const saved=await consume('register'),{rpID,origins}=webauthnConfig(env);
@@ -112,6 +125,7 @@ export function createSecurityHandler({identity=authenticateIdentity,pool=getPay
       // Check uniqueness before recovery deletes anything.
       const existing=await db.query('SELECT credential_id FROM app_security_passkeys WHERE credential_id=$1',[credential.id]);
       if(existing.rows.length)throw fail('credential_already_registered',409);
+      if(saved.mode!=='initial')await grant([saved.mode],true,saved.grantHash);
       if(saved.mode==='recover')await resetFactors();
       await db.query('INSERT INTO app_security_passkeys(credential_id,user_id,rp_id,credential) VALUES($1,$2,$3,$4)',
        [credential.id,owner.userId,rpID,JSON.stringify({...credential,publicKey:Buffer.from(credential.publicKey).toString('base64url'),
@@ -123,7 +137,7 @@ export function createSecurityHandler({identity=authenticateIdentity,pool=getPay
       if(!allowed.length)throw fail('factor_not_registered',403);
       const options=await webauthn.generateAuthenticationOptions({rpID,userVerification:'required',
        allowCredentials:allowed.map(k=>({id:k.credential_id,transports:k.credential.transports}))});
-      return {options,challengeId:await challenge('authenticate',{challenge:options.challenge,rpID,scope:body.purpose==='manage'?'manage':'unlock'})};
+      return {options,expiresIn:300,challengeId:await challenge('authenticate',{challenge:options.challenge,rpID,scope:body.purpose==='manage' || !recoveryReady(user)?'manage':'unlock'})};
      }
      if(action==='passkey/verify') {
       const saved=await consume('authenticate'),{rpID,origins}=webauthnConfig(env);
@@ -165,23 +179,23 @@ export function createSecurityHandler({identity=authenticateIdentity,pool=getPay
        RETURNING extract(epoch from expires_at-now()) AS ttl`,[hash(token)]);
       return {expiresIn:Number(renewed.ttl)};
      }
-     if(action==='recovery/start') {
-      if(!recovery.available)throw fail('recovery_unavailable',503);
-      const id=opaque();
-      const state=await recovery.start({userId:owner.userId,challengeId:id});
-      await db.query(`INSERT INTO app_security_challenges(id,user_id,privy_session,purpose,payload,expires_at)
-       VALUES($1,$2,$3,'recovery',$4,now()+interval '5 minutes')`,[id,...params,JSON.stringify(state)]);
-      return {challengeId:id};
-     }
-     if(action==='recovery/verify') {
-      if(!recovery.available)throw fail('recovery_unavailable',503);
-      const state=await consume('recovery');
-      if(!await recovery.verify({userId:owner.userId,challengeId:body.challengeId,state,code:body.code}))throw fail('invalid_recovery_code',403);
-      return issue('recover');
-     }
      throw fail('not_found',404);
     }catch(error){if(error instanceof PaymentError)return {failure:error};throw error;}
    },dbPool);
+   if(result.delivery) {
+    const job=result.delivery;
+    try {await recovery.send(job);}
+    catch(error) {
+     await dbPool.query("UPDATE app_security_challenges SET state='failed' WHERE id=$1 AND state='pending'",[job.id]);
+     metric('recovery_delivery_failed');throw error;
+    }
+    const {rows}=await dbPool.query(`UPDATE app_security_challenges SET state='sent' WHERE id=$1 AND state='pending'
+     AND expires_at>now() RETURNING id`,[job.id]);
+    if(!rows.length)throw fail('invalid_challenge');
+    metric('recovery_sent');return json(200,{challengeId:job.id,expiresIn:300,email:maskEmail(job.email)});
+   }
+   if(action==='renew' && result.failure)metric('renew_rejected');
+   if(action==='recovery/verify')metric(result.failure?'recovery_rejected':'recovery_verified');
    return result.failure?securityError(result.failure):json(200,result);
   }catch(error){return securityError(error);}
  };

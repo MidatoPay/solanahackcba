@@ -53,7 +53,7 @@ export async function securityApi(action,getToken,body,extra={}) {
   body:body===undefined?undefined:JSON.stringify(body)});
  const data=await response.json();
  if(started!==epoch && action!=='lock')throw new Error('app_locked');
- if(!response.ok){const error=new Error(data.error || 'security_unavailable');error.code=data.error;throw error;}
+ if(!response.ok){const error=new Error(data.error || 'security_unavailable');error.code=data.error;error.retryAfter=Number(response.headers.get('Retry-After')) || 0;throw error;}
  if(data.scope==='unlock')unlockIdentities.set(data,token);
  if(action==='renew' && extra['X-App-Unlock']===credential)privyCredential=token;
  return data;

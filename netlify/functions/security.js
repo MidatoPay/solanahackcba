@@ -4,6 +4,13 @@ import { authenticateIdentity } from './lib/securityAuth.js';
 import { createPin,verifyPin,opaque,hash,header,fail,webauthnConfig } from './lib/securityCore.js';
 import { recoveryAdapter } from './lib/securityRecovery.js';
 import { PaymentError } from './lib/paymentCore.js';
+import {authenticationLimit,takeLimit,rateLimited} from './lib/securityLimits.js';
+
+function securityError(error) {
+ const response=errorResponse(error);
+ if(error.status===429)response.headers['Retry-After']=String(error.retryAfter || 60);
+ return response;
+}
 
 export function createSecurityHandler({identity=authenticateIdentity,pool=getPaymentDb,env=process.env,recovery=recoveryAdapter,
  webauthn={generateRegistrationOptions,verifyRegistrationResponse,generateAuthenticationOptions,verifyAuthenticationResponse}}={}) {
@@ -18,15 +25,7 @@ export function createSecurityHandler({identity=authenticateIdentity,pool=getPay
    let body;try{body=JSON.parse(event.body || '{}');}catch{throw fail('invalid_json');}
    if(!body || typeof body!=='object' || Array.isArray(body))throw fail('invalid_json');
    // Trust only Netlify's edge-provided client address, never X-Forwarded-For.
-   if(event.httpMethod==='POST') {
-    const ip=header(event,'x-nf-client-connection-ip') || 'local';
-    const {rows}=await dbPool.query(`INSERT INTO app_security_limits(key,attempts,expires_at)
-     VALUES($1,1,now()+interval '15 minutes') ON CONFLICT(key) DO UPDATE SET
-     attempts=CASE WHEN app_security_limits.expires_at<=now() THEN 1 ELSE app_security_limits.attempts+1 END,
-     expires_at=CASE WHEN app_security_limits.expires_at<=now() THEN now()+interval '15 minutes' ELSE app_security_limits.expires_at END
-     RETURNING attempts`,['ip:'+hash(ip)]);
-    if(rows[0].attempts>100)throw fail('security_rate_limited',429);
-   }
+   if(event.httpMethod==='POST' && !['renew','lock'].includes(action))await authenticationLimit(dbPool,owner,event);
    const result=await transaction(async db=>{
     await db.query('INSERT INTO app_security_users(user_id) VALUES($1) ON CONFLICT DO NOTHING',[owner.userId]);
     const {rows:[user]}=await db.query('SELECT * FROM app_security_users WHERE user_id=$1 FOR UPDATE',[owner.userId]);
@@ -81,7 +80,7 @@ export function createSecurityHandler({identity=authenticateIdentity,pool=getPay
       return enrolled(mode);
      }
      if(action==='pin/verify') {
-      if(user.blocked_until && new Date(user.blocked_until)>new Date())throw fail('pin_blocked',429);
+      if(user.blocked_until && new Date(user.blocked_until)>new Date())throw rateLimited((new Date(user.blocked_until)-Date.now())/1000,'pin_blocked');
       if(!user.pin)throw fail('factor_not_registered',403);
       if(!await verifyPin(body.pin,user.pin,env)) {
        await db.query(`UPDATE app_security_users SET failed_attempts=CASE WHEN blocked_until<=now() THEN 1 ELSE failed_attempts+1 END,
@@ -156,11 +155,15 @@ export function createSecurityHandler({identity=authenticateIdentity,pool=getPay
        await db.query('UPDATE app_security_sessions SET revoked=true WHERE token_hash=$1 AND user_id=$2 AND privy_session=$3',[hash(token),...params]);
        return {locked:true};
       }
-      const {rows}=await db.query(`UPDATE app_security_sessions SET expires_at=LEAST(now()+interval '90 seconds',absolute_expires_at)
+      const {rows}=await db.query(`SELECT token_hash FROM app_security_sessions
        WHERE token_hash=$1 AND user_id=$2 AND privy_session=$3 AND scope='unlock' AND NOT revoked
-       AND expires_at>now() AND absolute_expires_at>now() RETURNING token_hash`,[hash(token),...params]);
+       AND expires_at>now() AND absolute_expires_at>now() FOR UPDATE`,[hash(token),...params]);
       if(!rows.length)throw fail('app_locked',423);
-      return {expiresIn:90};
+      await takeLimit(db,'renew:'+hash(token),10,60);
+      const {rows:[renewed]}=await db.query(`UPDATE app_security_sessions
+       SET expires_at=LEAST(now()+interval '90 seconds',absolute_expires_at) WHERE token_hash=$1
+       RETURNING extract(epoch from expires_at-now()) AS ttl`,[hash(token)]);
+      return {expiresIn:Number(renewed.ttl)};
      }
      if(action==='recovery/start') {
       if(!recovery.available)throw fail('recovery_unavailable',503);
@@ -179,8 +182,8 @@ export function createSecurityHandler({identity=authenticateIdentity,pool=getPay
      throw fail('not_found',404);
     }catch(error){if(error instanceof PaymentError)return {failure:error};throw error;}
    },dbPool);
-   return result.failure?errorResponse(result.failure):json(200,result);
-  }catch(error){return errorResponse(error);}
+   return result.failure?securityError(result.failure):json(200,result);
+  }catch(error){return securityError(error);}
  };
 }
 export const handler=createSecurityHandler();

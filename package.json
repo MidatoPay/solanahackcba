@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:full": "netlify dev --offline",
+    "dev:full": "node scripts/dev-full.js",
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test --test-concurrency=1 test/*.test.js",

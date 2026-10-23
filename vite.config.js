@@ -16,10 +16,13 @@ export default defineConfig(({ mode }) => {
       esbuildOptions: { define: { global: "globalThis" } },
     },
     server: {
+      watch: {
+        ignored: ["**/.netlify/**"],
+      },
       proxy: {
         "/security": {target:"http://127.0.0.1:9999",changeOrigin:true,rewrite:path=>path.replace(/^\/security/,"/.netlify/functions/security")},
-        "/quote": {target:"http://127.0.0.1:8888",changeOrigin:true},
-        "/balance": {target:"http://127.0.0.1:8888",changeOrigin:true},
+        "/quote": {target:"http://127.0.0.1:9999",changeOrigin:true},
+        "/balance": {target:"http://127.0.0.1:9999",changeOrigin:true},
         "/wallet": {target:"http://127.0.0.1:9999",changeOrigin:true,rewrite:path=>path.replace(/^\/wallet/,"/.netlify/functions/wallet")},
         "/transfers": {target:"http://127.0.0.1:9999",changeOrigin:true,rewrite:path=>path.replace(/^\/transfers/,"/.netlify/functions/transfers")},
         "/treasury/export-access": {target:"http://127.0.0.1:9999",changeOrigin:true,rewrite:()=>"/.netlify/functions/treasury-export-access"},
@@ -44,11 +47,11 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path.replace(/^\/webhooks\/mercadopago/, "/.netlify/functions/mercadopago-webhook"),
         },
         "/rpc": {
-          target: "http://127.0.0.1:8888",
+          target: "http://127.0.0.1:9999",
           changeOrigin: true,
         },
         "/eth-rpc": {
-          target: "http://127.0.0.1:8888",
+          target: "http://127.0.0.1:9999",
           changeOrigin: true,
         },
         "/contacts": {

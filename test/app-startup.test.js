@@ -17,6 +17,8 @@ const compiled=await build({
    let state;
    export function setSession(session){state={ready:false,authenticated:false,user:null,login:()=>{},logout:async()=>{},getAccessToken:async()=>null,...session};}
    export function usePrivy(){return state;}
+   export function useLinkEmail(){return {sendCode:async()=>{},linkWithCode:async()=>{}};}
+   export function useToken(){return {getAccessToken:state.getAccessToken};}
    export function useWallets(){return {ready:state.ready,wallets:[]};}
    export function useSignTransaction(){return {signTransaction:async()=>{throw new Error('Must not sign on startup');}};}
    export function useSignAndSendTransaction(){return {signAndSendTransaction:async()=>{throw new Error('Must not send on startup');}};}

@@ -8,5 +8,7 @@ export function PrivyFixture({children}) {
  return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 export const usePrivy=()=>useContext(Context);
+export const useToken=()=>({getAccessToken:useContext(Context).getAccessToken});
+export const useLinkEmail=()=>({sendCode:async()=>{},linkWithCode:async()=>({user:{}})});
 export const useWallets=()=>({ready:true,wallets:[]});
 export const useExportWallet=()=>({exportWallet:async()=>{throw new Error('Fixture cannot export wallets');}});

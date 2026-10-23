@@ -3,3 +3,30 @@ export const securityCopy={
  es:{title:'Seguridad',setup:'Protegé tu cuenta',locked:'Desbloquear MidatoPay',choose:'Elegí una passkey o un PIN de cinco dígitos para continuar.',device:'Usar seguridad del dispositivo',deviceInfo:'Tu dispositivo elige rostro, huella o su código de desbloqueo. MidatoPay nunca recibe datos biométricos.',pin:'Usar PIN',create:'Creá un PIN de cinco dígitos',confirm:'Confirmá tu PIN',verify:'Verificá tu método actual',continue:'Continuar',erase:'Borrar',back:'Volver',recover:'Recuperar acceso',unavailable:'La recuperación automática todavía no está disponible. Usá otro método registrado.',error:'No se pudo verificar. Reintentá o usá otro método registrado.',incorrect_pin:'PIN incorrecto. Después de cinco intentos se bloquea el PIN durante 15 minutos.',pin_blocked:'PIN bloqueado durante 15 minutos. Usá una passkey o recuperación.',invalid_pin:'Usá cinco dígitos. Evitá dígitos iguales y secuencias ascendentes o descendentes.',mismatch:'Los PIN no coinciden.',addPin:'Agregar o cambiar PIN',addDevice:'Agregar passkey',remove:'Eliminar',done:'Listo',loading:'Cargando…',logout:'Cerrar sesión',retry:'Reintentar',digits:'PIN: cinco dígitos ocultos',recoveryCode:'Código de recuperación',sent:'Ingresá el código nuevo enviado a tu email o teléfono verificado.',manageInfo:'Volvé a verificar un método registrado para cambiar tu seguridad.',last_factor_required:'Conservá al menos un método registrado.',lock:'Bloquear ahora'},
  zh:{title:'安全',setup:'保护您的账户',locked:'解锁 MidatoPay',choose:'选择通行密钥或五位数字 PIN 以继续。',device:'使用设备安全验证',deviceInfo:'设备将选择面容、指纹或解锁码。MidatoPay 不会接收生物识别数据。',pin:'使用 PIN',create:'创建五位数字 PIN',confirm:'确认 PIN',verify:'验证当前方式',continue:'继续',erase:'删除',back:'返回',recover:'恢复访问',unavailable:'自动恢复暂不可用。请使用其他已注册的方式。',error:'验证失败。请重试或使用其他已注册的方式。',incorrect_pin:'PIN 错误。五次失败后将锁定十五分钟。',pin_blocked:'PIN 已锁定十五分钟。请使用通行密钥或恢复功能。',invalid_pin:'请输入五位数字，避免相同数字和升降序列。',mismatch:'两次 PIN 不一致。',addPin:'添加或更改 PIN',addDevice:'添加通行密钥',remove:'移除',done:'完成',loading:'加载中…',logout:'退出登录',retry:'重试',digits:'PIN：五个隐藏数字',recoveryCode:'恢复验证码',sent:'请输入发送至已验证邮箱或手机的新验证码。',manageInfo:'请重新验证已注册的方式以更改安全设置。',last_factor_required:'至少保留一种已注册的方式。',lock:'立即锁定'},
 };
+Object.assign(securityCopy.es,{
+ unavailable:'El servicio de email no está disponible. Reintentá más tarde o usá un factor registrado.',sent:'Ingresá el código de seis dígitos enviado a tu email. Vence en cinco minutos.',
+ email:'Email de recuperación',contactRequired:'Confirmá un email de recuperación para completar la seguridad. Si ya tenés un factor, verificalo primero.',
+ confirmEmail:'Confirmar email de recuperación',updateEmail:'Confirmar email actual de Privy',linkInfo:'Vinculá un email a tu cuenta. Privy enviará un código para verificarlo.',
+ linkCode:'Ingresá el código enviado por Privy. Después confirmaremos este email como contacto de recuperación.',resend:'Enviar otro código',wait:'Reintentá en',
+ preparing:'Preparando la seguridad del dispositivo…',expired:'La preparación venció. Prepará un nuevo intento.',failed:'No se pudo preparar. Reintentá o usá PIN.',unsupported:'Tu navegador no admite passkeys. Usá PIN.',
+ cancelled:'Se canceló el diálogo. Podés reintentar o usar PIN.',verified_email_required:'Primero vinculá un email verificado.',invalid_recovery_code:'Código incorrecto. Tenés hasta cinco intentos por código.',
+ invalid_challenge:'El código o desafío venció o ya fue utilizado. Solicitá uno nuevo.',recovery_contact_required:'Falta confirmar el email de recuperación.',
+ recovery_delivery_failed:'No se pudo enviar el email. Reintentá más tarde.',security_rate_limited:'Alcanzaste el límite de intentos.',factor_verification_required:'Volvé a verificar tu factor actual.',app_locked:'La sesión se bloqueó. Volvé a intentarlo.',
+});
+Object.assign(securityCopy.en,{
+ unavailable:'Email service is unavailable. Try later or use a registered factor.',sent:'Enter the six-digit code sent to your email. It expires in five minutes.',
+ email:'Recovery email',contactRequired:'Confirm a recovery email to complete security setup. Verify your existing factor first, if you have one.',
+ confirmEmail:'Confirm recovery email',updateEmail:'Confirm current Privy email',linkInfo:'Link an email to your account. Privy will send a verification code.',
+ linkCode:'Enter the code from Privy. Next, confirm this email as your recovery contact.',resend:'Send another code',wait:'Try again in',
+ preparing:'Preparing device security…',expired:'Preparation expired. Prepare a new attempt.',failed:'Could not prepare. Retry or use PIN.',unsupported:'Passkeys are unavailable in this browser. Use PIN.',
+ cancelled:'Dialog cancelled. Retry or use PIN.',verified_email_required:'Link a verified email first.',invalid_recovery_code:'Incorrect code. Each code allows up to five attempts.',
+ invalid_challenge:'The code or challenge expired or was used. Request a new one.',recovery_contact_required:'Confirm your recovery email first.',recovery_delivery_failed:'Could not send email. Try again later.',
+ security_rate_limited:'Attempt limit reached.',factor_verification_required:'Verify your current factor again.',app_locked:'Session locked. Try again.',
+});
+Object.assign(securityCopy.zh,{
+ unavailable:'邮件服务暂不可用。请稍后重试或使用已注册的验证方式。',sent:'请输入发送到邮箱的六位验证码，有效期五分钟。',email:'恢复邮箱',contactRequired:'请确认恢复邮箱。如已有验证方式，请先完成验证。',
+ confirmEmail:'确认恢复邮箱',updateEmail:'确认当前 Privy 邮箱',linkInfo:'关联邮箱，Privy 将发送验证码。',linkCode:'请输入 Privy 验证码，然后确认恢复邮箱。',resend:'重新发送',wait:'重试等待',
+ preparing:'正在准备设备验证…',expired:'验证已过期，请重试。',failed:'准备失败，请重试或使用 PIN。',unsupported:'浏览器不支持通行密钥，请使用 PIN。',cancelled:'已取消，请重试或使用 PIN。',
+ verified_email_required:'请先关联已验证的邮箱。',invalid_recovery_code:'验证码错误，每个验证码最多尝试五次。',invalid_challenge:'验证码已过期或已使用，请重新获取。',recovery_contact_required:'请先确认恢复邮箱。',
+ recovery_delivery_failed:'邮件发送失败，请稍后重试。',security_rate_limited:'已达到尝试次数限制。',factor_verification_required:'请重新验证当前方式。',app_locked:'会话已锁定，请重试。',
+});

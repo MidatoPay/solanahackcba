@@ -3,6 +3,8 @@
   publish = "dist"
 
 [build.environment]
+  NODE_VERSION = "22"
+  AWS_LAMBDA_JS_RUNTIME = "nodejs22.x"
   # Only non-credential configuration values; all other secret scanning stays enabled.
   SECRETS_SCAN_OMIT_KEYS = "PAYMENTS_BASE_URL,MP_ENVIRONMENT,PAYMENTS_ENABLED,VITE_SOLANA_CLUSTER,ETH_RPC_URL"
 

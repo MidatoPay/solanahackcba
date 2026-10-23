@@ -8,6 +8,7 @@ import {createSecurityHandler} from '../netlify/functions/security.js';
 import {requireUnlock} from '../netlify/functions/lib/securityAuth.js';
 import {json,errorResponse} from '../netlify/functions/lib/paymentRuntime.js';
 import {opaque} from '../netlify/functions/lib/securityCore.js';
+import {createRecoveryService} from '../netlify/functions/lib/securityRecovery.js';
 
 const port=5187,output=resolve('.netlify/security-browser-fixture');
 await mkdir(output,{recursive:true});
@@ -24,21 +25,28 @@ await build({entryPoints:['test/browser/security-fixture.jsx'],outfile:resolve(o
 if(process.argv.includes('--build-only'))process.exit(0);
 const engine=new PGlite();await engine.waitReady;
 await engine.exec(await readFile('db/migrations/20261021_app_security.sql','utf8'));
+await engine.exec(await readFile('db/migrations/20261022_security_recovery.sql','utf8'));
 const query=(sql,params=[])=>engine.query(sql,params);let tail=Promise.resolve();
 const pool={query,connect:async()=>{const previous=tail;let release;tail=new Promise(r=>{release=r;});await previous;return {query,release};}};
-const env={SECURITY_PIN_PEPPER:opaque(),SECURITY_RP_ID:'localhost',SECURITY_ORIGINS:`http://localhost:${port}`};
+const env={SECURITY_PIN_PEPPER:opaque(),SECURITY_RECOVERY_PEPPER:opaque(),RESEND_API_KEY:'fixture',SECURITY_RECOVERY_FROM:'fixture@example.test',SECURITY_RP_ID:'localhost',SECURITY_ORIGINS:`http://localhost:${port}`};
 const identity=async event=>{
  const token=event.headers.authorization;
  const id=token==='Bearer fixture-alice'?'alice':token==='Bearer fixture-bob'?'bob':null;
  if(!id)throw Object.assign(new Error(),{fixtureUnauthorized:true});
  return {userId:`did:privy:fixture-${id}`,sessionId:`fixture-session-${id}`};
 };
-const handler=createSecurityHandler({identity,pool:()=>pool,env});
+// Explicitly local-only mail sink: exposes test OTPs solely in this fixture.
+const mailbox=[];
+const recovery=createRecoveryService({env,getUser:async userId=>{
+ const email=userId.endsWith('bob')?'bob@example.test':'alice@example.test';
+ return {email:{address:email},linkedAccounts:[{type:'email',address:email,firstVerifiedAt:new Date()}]};
+},request:async(_url,options)=>{const mail=JSON.parse(options.body);mailbox.push({to:mail.to,code:mail.text.match(/\b\d{6}\b/)[0]});return new Response('{"id":"fixture"}');}});
+const handler=createSecurityHandler({identity,pool:()=>pool,env,recovery});
 let offline=false,privateReads=0,privateDenied=0;
 const publicAssets=new Map();
 for(const directory of ['logo','monedas'])for(const file of await readdir(resolve('public',directory)))
  if(/\.(png|svg|webp)$/.test(file))publicAssets.set(`/${directory}/${file}`,resolve('public',directory,file));
-const state=async()=>({offline,privateReads,privateDenied,users:(await query('SELECT user_id, pin IS NOT NULL AS pin, failed_attempts,blocked_until FROM app_security_users')).rows,
+const state=async()=>({offline,privateReads,privateDenied,mailbox,users:(await query('SELECT user_id, pin IS NOT NULL AS pin, failed_attempts,blocked_until FROM app_security_users')).rows,
  liveUnlocks:(await query("SELECT count(*)::integer AS count FROM app_security_sessions WHERE scope='unlock' AND NOT revoked AND expires_at>now()")).rows[0].count});
 const server=createServer(async(request,response)=>{
  const url=new URL(request.url,`http://localhost:${port}`),path=url.pathname;
@@ -56,6 +64,7 @@ const server=createServer(async(request,response)=>{
    else if(path==='/fixture/online')offline=false;
    else if(path==='/fixture/expire-lockout')await query("UPDATE app_security_users SET blocked_until=now()-interval '1 second' WHERE blocked_until IS NOT NULL");
    else if(path==='/fixture/revoke')await query('UPDATE app_security_sessions SET revoked=true');
+   else if(path==='/fixture/expire-recovery-window')await query("UPDATE app_security_limits SET expires_at=now()-interval '1 second' WHERE key LIKE 'otp:minute:%'");
    else if(path!=='/fixture/state'){send(json(404,{}));return;}
    send(json(200,await state()));return;
   }

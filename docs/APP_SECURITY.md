@@ -1,195 +1,142 @@
-# Acceso protegido de MidatoPay
+# Acceso protegido y recuperación por email
 
-Trabajo en `jm-app-security`, worktree `../app-security`, desde `jm-cache-treasury`.
-Privy verifica identidad y sesión; el desbloqueo de MidatoPay autoriza sus APIs privadas.
-La app autenticada permanece desmontada hasta completar PIN o passkey. Las confirmaciones
-y firmas de transferencias siguen en sus flujos actuales.
+Implementación en `fix/app-security-recovery-mobile`, sobre `main` 97a6c00. Reintroduce
+1734064 conservando PWA, instalación móvil, redirecciones y dependencias posteriores.
+No se publicó en producción ni se ejecutaron migraciones remotas.
 
-## Configuración y migración
+## Modelo de autorización
 
-1. Instalar con `npm ci` en este worktree.
-2. Generar `SECURITY_PIN_PEPPER` con al menos 32 bytes aleatorios, mantenerlo en el
-   gestor de secretos del servidor, nunca en variables `VITE_`. Su pérdida obliga a
-   recuperar PIN mediante otro factor; cambiarlo requiere una estrategia de migración.
-3. Configurar `SECURITY_RP_ID` y `SECURITY_ORIGINS` explícitamente. Desarrollo:
-   `localhost` y `http://localhost:5173,http://localhost:8888`. Producción: dominio
-   propio y orígenes HTTPS exactos, sin rutas. Usar bases, secretos y RP distintos por
-   entorno; las credenciales de localhost no sirven en producción. No derivar el origen
-   permitido de un header del cliente.
-4. Con las variables privadas de PostgreSQL configuradas, ejecutar
-   `node --env-file=.env scripts/migrate-security.js` en el entorno de prueba.
-   La migración es idempotente y no toca fondos ni factores existentes de Privy.
-5. `SECURITY_ENFORCED` exige desbloqueo por defecto. `false` es una excepción operativa
-   explícita para preparar el servidor antes del rollout; no usarla para la validación
-   de seguridad. El frontend de esta rama siempre muestra el desbloqueo.
-6. Ejecutar `npm test`, `npm run build` y `npm run functions:check`. Validar los
-   recorridos manuales siguientes en un despliegue de prueba antes de activar para todos.
+Privy verifica DID y sesión. Las APIs privadas exigen también un desbloqueo de
+MidatoPay y la existencia de un factor y contacto de recuperación confirmado.
+PIN: cinco dígitos, ceros iniciales permitidos, sin repeticiones ni secuencias;
+scrypt con sal única y pepper independiente. Cinco fallos bloquean el PIN quince
+minutos. WebAuthn verifica origen HTTPS, RP, desafío, firma, contador y UV en servidor.
+Las autorizaciones financieras y la selección de wallet principal siguen vigentes.
 
-No se ha aplicado esta migración a un servicio remoto ni configurado secretos reales.
+El desbloqueo opaco vive solo en memoria del navegador; PostgreSQL guarda su SHA-256.
+Se liga al DID y sesión Privy, dura 90 segundos y se renueva cada 30 segundos en primer
+plano, sin superar doce horas. El cliente descuenta el tiempo de ida/vuelta de la
+vigencia recibida. `manage` y `recover` duran cinco minutos, son de un uso y no abren
+APIs privadas. `recover` solo sirve para registrar un factor nuevo. El registro
+consume el permiso y reemplaza los factores, revoca sesiones y elimina desafíos en
+una transacción; un fallo inesperado conserva los factores y el permiso anterior.
+Preparar opciones de registro no consume el permiso: se revalida al terminar.
 
-## Contratos
+## Recuperación y contacto obligatorio
 
-`/security/status` acepta GET; las demás rutas aceptan POST. Todas requieren un token
-Privy verificado con DID y `sessionId`. Las respuestas son `no-store`.
+El alta confirma primero el email y después crea un factor. Quien ingresó por SMS
+puede vincular email mediante `useLinkEmail` de Privy y luego confirmar el contacto
+con un segundo OTP propio de MidatoPay. Las cuentas históricas deben verificar su
+factor antes de configurar un contacto. Sin factor ni contacto histórico no hay bypass.
 
-| Ruta | Función |
+El servidor consulta `getUser(DID)` y selecciona la cuenta de email de Privy con
+`firstVerifiedAt`, nunca un destinatario del navegador ni el email de presentación
+OAuth. El contacto confirmado queda fijado. Cambiar Privy no lo cambia; para hacerlo
+se verifica un factor vigente y se confirma el email actual de Privy. La versión del
+contacto cambia y se revocan permisos/sesiones/desafíos anteriores.
+
+OTP aleatorio uniforme de seis dígitos, cinco minutos, hasta cinco errores. Se almacena
+solo HMAC-SHA256 con un pepper independiente, ligado a ID del desafío, DID, sesión,
+propósito y versión del contacto. La comparación usa `timingSafeEqual`. Reenviar invalida
+el anterior; acertar o llegar al quinto error lo consume. Estados: `pending`, `sent`,
+`failed`, `consumed`. El envío HTTP a Resend se hace tras liberar el bloqueo del usuario,
+con timeout de ocho segundos e idempotency key por desafío. Solo un envío aceptado
+habilita la verificación. Un error o timeout no concede permisos ni modifica factores.
+
+Todas las rutas `/security/*` exigen Privy. `status` usa GET, las restantes POST.
+Respuestas y fetch del cliente usan `no-store`.
+
+| Ruta | Resultado |
 | --- | --- |
-| `pin/enroll` | Alta inicial, cambio con grant fresco, o alta tras recuperación |
-| `pin/verify` | Verifica PIN; `purpose: manage` emite un permiso de gestión |
-| `passkey/register-options`, `passkey/register` | Registro con UV requerida |
-| `passkey/options`, `passkey/verify` | Autenticación con UV requerida |
-| `methods/remove` | Elimina un método con grant de gestión; conserva el último |
-| `renew`, `lock` | Renueva o revoca el desbloqueo de esta sesión |
-| `recovery/start`, `recovery/verify` | Recuperación cerrada hasta integrar OTP de servidor |
+| `status` | Factores, bloqueo, `enforced`, `recoveryReady`, email enmascarado, `recoveryAvailable` |
+| `pin/enroll`, `pin/verify` | Alta/cambio/recuperación; verificación del factor |
+| `passkey/register-options`, `passkey/register` | Preparación y registro de factor |
+| `passkey/options`, `passkey/verify` | Preparación y autenticación |
+| `methods/remove` | Requiere `manage`; conserva al menos un factor |
+| `renew`, `lock` | Renovación válida o revocación idempotente |
+| `recovery-email/start`, `recovery-email/verify` | Confirmar/actualizar contacto |
+| `recovery/start`, `recovery/verify` | OTP al contacto fijado; permiso `recover` |
+| `telemetry/dialog` | Contador de cancelación/interrupción, sin datos del diálogo |
 
-Las APIs privadas requieren además `X-App-Unlock`. Se almacena solo el SHA-256 de
-una credencial aleatoria de 256 bits, ligada al DID y sesión Privy. Vence a los
-90 segundos; se renueva cada 30 segundos en primer plano, con límite absoluto de
-12 horas. La verificación nueva de un factor es necesaria para gestionar métodos:
-`X-Security-Grant` dura cinco minutos, se consume una vez y no permite acceder a
-APIs privadas. Cambiar factores revoca sesiones y desafíos anteriores de ese DID.
+## Límites y métricas
 
-PIN es texto de cinco dígitos, conserva ceros y rechaza repeticiones y secuencias.
-El verificador v1 registra sal y parámetros `scrypt N=32768,r=8,p=1`, salida de
-32 bytes; la entrada usa HMAC-SHA256 con pepper privado. Cinco errores bloquean el
-PIN por quince minutos. Una fila de usuario se bloquea con `FOR UPDATE` para
-serializar intentos y modificaciones. Hay límite compartido de 100 POST por IP
-cada quince minutos en PostgreSQL usando la IP del edge Netlify. Probar esta
-cabecera en el despliegue de prueba; fuera de Netlify todos comparten el bucket
-`local` salvo que el proxy confiable suministre su dirección verificada.
+Los contadores usan upserts atómicos en PostgreSQL, compartidos entre instancias.
+Solo se confía en `x-nf-client-connection-ip` de Netlify; `X-Forwarded-For` no influye.
+Un proxy local debe suministrar una IP confiable o todos comparten el bucket `local`.
+Los rechazos devuelven 429 y `Retry-After`; la interfaz muestra segundos restantes.
 
-WebAuthn valida desafío, origen, RP, firma, contador y UV en servidor. Credenciales
-y desafíos están asociados al DID; los desafíos también a la sesión Privy, vencen
-a los cinco minutos y se consumen incluso ante una respuesta incorrecta. Las APIs
-de seguridad no aceptan un ID de usuario enviado por el navegador.
-
-## Recuperación: publicación bloqueada
-
-La versión instalada `@privy-io/server-auth@1.32.5` expone verificación de tokens y
-consulta de usuarios, pero no un método de autenticación OTP de servidor. El
-adaptador `netlify/functions/lib/securityRecovery.js` tiene `available:false` y
-devuelve `recovery_unavailable`. La pantalla conserva los métodos registrados y
-explica la indisponibilidad. No publicar recuperación automática hasta resolver
-y validar esta integración con Privy.
-
-El contrato futuro debe consultar email/teléfono ya verificado de ese DID, enviar
-un código nuevo, enlazarlo al desafío y verificarlo en servidor. No puede recibir
-un destino arbitrario ni aceptar callbacks del cliente o tokens renovados como
-prueba. El permiso de recuperación solo permite registrar un factor nuevo. Al
-completarlo se eliminan los factores previos y se revocan todos los desbloqueos.
-Las pruebas usan un adaptador falso explícito; no habilitan OTP en producción.
-
-## Ciclo de vida
-
-`visibilitychange`, blur y pagehide cubren el contenido inmediatamente, descartan
-la credencial en memoria y solicitan revocación. Al volver se pide verificación.
-Si la red impide revocar, el permiso anterior vence como máximo en 90 segundos.
-Las respuestas HTTP/RPC de una generación bloqueada se rechazan; las intenciones
-de transferencia conservan el almacenamiento e idempotencia existentes.
-
-Passkeys, permisos de cámara/micrófono y firma/exportación Privy tienen una
-excepción limitada a la operación nativa, con máximo de dos minutos. La interfaz
-privada sigue cubierta mientras falta foco. Navegadores no identifican de forma
-fiable si una pérdida de foco proviene de otro tab o del diálogo nativo; probar
-los recorridos reales por plataforma. Pagehide siempre bloquea. No ampliar esta
-excepción a todo el flujo de pago.
-
-Limpiar periódicamente sesiones revocadas/vencidas, desafíos vencidos y límites
-vencidos de las tablas `app_security_*`, según la retención del entorno.
-
-## Validación antes del rollout
-
-Las pruebas automatizadas usan PostgreSQL embebido, PIN falsos y un autenticador
-virtual con firmas reales; nunca mueven fondos. Cubren alta, identidad, lockout,
-grants, revocación, límites, desafíos, firmas/origen/RP/UV y aislamiento de sesión.
-
-Validar manualmente Android/Chrome, iPhone/Safari y escritorio: alta inicial y
-usuario existente; PIN incorrecto/bloqueado; cancelación de passkey; gestión de
-métodos; apertura, recarga, cambio de pestaña, cambio de app, retorno y bloqueo
-sin red; diálogos de permisos y firmas sin bucles; restauración de una intención
-pendiente sin duplicar envíos; cambio de usuario y expiración absoluta. Repetir
-en PWA instalada al integrar `feat/installable-webapp`. La recuperación real queda
-pendiente de su adaptador y la validación en un entorno de prueba es requisito
-previo a activar la exigencia general.
-
-Referencias: [SimpleWebAuthn servidor](https://simplewebauthn.dev/docs/packages/server),
-[WebAuthn](https://developer.mozilla.org/en-US/docs/Web/API/Web_Authentication_API),
-[tokens Privy](https://docs.privy.io/authentication/user-authentication/access-tokens).
-
-## Resultado de verificación local — 21/10/2026
-
-- Suite completa: 180 pruebas, 178 pasan y 2 fallan en `test/charge-received.test.js`.
-  Ambos fallos también se reproducen con ese archivo reconstruido desde `HEAD`;
-  ni el test ni `src/ChargeSummary.jsx` se modificaron en esta rama. Sus expectativas
-  sobre «Pago recibido» difieren del QR y estado «Procesando pago» de la base.
-  La corrección pendiente del test se conserva exclusivamente en el checkout original.
-- Después del ajuste final de aislamiento de diálogos nativos por sesión:
-  29 pruebas enfocadas pasan, incluidas 17 de seguridad, arranque, cambio de usuario,
-  transporte RPC real y cliente de tesorería.
-- `npm run build`: pasa; conserva los avisos existentes de tamaño de chunks y
-  configuración de optimización de dependencias.
-- `npm run functions:check`: pasa; empaqueta 22 Functions y comprueba el rechazo
-  de solicitudes no autenticadas, incluida la nueva Function `security`.
-- `git diff --check`: pasa. El worktree de instalación permanece limpio y el
-  checkout original conserva únicamente su modificación previa del test de cobros.
-
-Los logs locales están en `.netlify/app-security-{tests,focused,build,functions,baseline}.log`
-(ignorados por Git). No hay navegador conectado en esta sesión: no se validaron
-interacciones reales con Privy, autenticadores físicos, Safari/Android ni PWA.
-Quedan pendientes el adaptador OTP real, las pruebas en dispositivos y el despliegue
-de prueba con migración y secretos, antes de publicar o activar en producción.
-
-## Actualización: comprobaciones en Edge — 21/10/2026
-
-Se conectó Edge y se ejecutó `node scripts/security-browser-fixture.js` en
-`http://localhost:5187`. El fixture usa los componentes de producción, la Function
-de seguridad y PostgreSQL efímero. La identidad Privy es falsa, no se carga `.env`
-y no se conectan wallets, servicios de pago ni fondos. El adaptador WebAuthn del
-fixture simula cancelación: esta prueba de interfaz no verifica hardware real.
-
-| Recorrido | Resultado observado en Edge |
+| Presupuesto | Límite |
 | --- | --- |
-| Alta inicial y PIN con cero inicial | Pasa; API privada autorizada tras confirmar |
-| Confirmación distinta, PIN secuencial | Pasa; no se habilita contenido privado |
-| Teclado numérico, borrar y campo oculto | Pasa |
-| Cinco errores de PIN | Pasa; PostgreSQL registra cinco intentos y bloqueo de quince minutos |
-| Recuperación sin adaptador OTP | Pasa; se informa que está indisponible y permanece bloqueada |
-| Recarga | Pasa; vuelve al desbloqueo; `keepalive` permite revocar la sesión en el servidor |
-| Gestión de métodos y cambio de PIN | Pasa; pide verificación nueva, deshabilita eliminar el último método y rechaza el PIN anterior |
-| Cambio de identidad | Pasa; el segundo usuario vuelve a configuración y la sesión anterior queda revocada |
-| Red caída simulada y bloqueo local | Pasa; desaparece el contenido privado aunque falle la revocación |
-| Revocación desde servidor | Pasa; la siguiente consulta privada vuelve a la pantalla de bloqueo |
-| Cancelación de passkey simulada | Pasa; conserva la pantalla bloqueada |
-| Tamaño móvil 390 × 844 y escritorio | Revisados los controles y estados |
-| Cobro sin pagar / recibido / en revisión | QR y acciones coinciden con el componente actual |
-| Cobro entregado | Animación de éxito y transición real al recibo tras tres segundos |
+| Autenticación/gestión | 60 por DID y 1.000 por IP cada 15 minutos |
+| Renovación | 10/minuto por credencial válida; se comprueba identidad y vigencia primero |
+| Revocación | Sin consumo de los presupuestos anteriores |
+| Envío OTP | 1/minuto, 5/hora por DID; 100/hora por IP |
+| Verificación OTP | 5 errores por desafío; 10 solicitudes por DID cada 15 minutos |
 
-Se corrigieron tres problemas encontrados: el error de confirmación persistía al
-iniciar un intento nuevo; la revocación podía cancelarse al descargar la página;
-y, al cambiar de usuario, podía usar la nueva identidad para intentar revocar el
-desbloqueo anterior. Ahora se limpia el error, se envía `keepalive` y se conserva
-en memoria la identidad asociada al desbloqueo para revocarlo correctamente.
+Los eventos `security_metric` usan únicamente nombres enumerados: `renew_rejected`,
+`recovery_sent`, `recovery_delivery_failed`, `recovery_verified`, `recovery_rejected`,
+`dialog_cancelled`, `dialog_interrupted`. Agregar por nombre/ventana en los logs del
+servidor, sin dimensiones de DID, email, IP, token ni código. La telemetría del
+navegador es indicativa y también limitada; no se usa para autorizar operaciones.
 
-Los dos fallos anteriores de cobros eran expectativas de presentación antiguas.
-Tras revisar los estados reales en Edge, se incorporó al worktree la corrección
-pendiente de `test/charge-received.test.js` del checkout original, preservando ese
-archivo original intacto. Se cubren también el QR sin pagar y la animación inicial
-del cobro entregado. No se cambió `ChargeSummary.jsx` ni la lógica financiera.
+## Ciclo de vida e iOS 16+
 
-Verificación actual: `npm test` **184/184**, build y `functions:check` correctos
-(22 Functions empaquetadas). Los logs de esta
-ejecución son `.netlify/app-security-edge-tests.log` y
-`.netlify/app-security-edge-build.log`, además de
-`.netlify/app-security-edge-functions.log`. Las capturas están en
-`.netlify/edge-security-pin.png`, `.netlify/edge-charge-processing.png` y
-`.netlify/edge-charge-delivered.png`. El fixture queda fuera del bundle de producto.
-Se puede reconstruir solo su frontend con
-`node scripts/security-browser-fixture.js --build-only`; recargar Edge después.
-Reiniciar el servidor descarta su base de datos y las identidades de prueba.
+La operación nativa recorre `open → waiting_focus → finished/cancelled`. Al resolver
+visible sin foco, mantiene la cobertura y espera hasta dos segundos. Foco anterior
+o posterior a la resolución produce el mismo resultado. Página oculta al terminar,
+`pagehide`, cambio de identidad/sesión, expiración o timeout cancelan resultados tardíos.
+La excepción nativa dura como máximo dos minutos y no alarga el desbloqueo. No se
+repiten firmas ni envíos automáticamente. El mismo wrapper cubre passkeys, permisos
+usados por la app y diálogos de Privy.
 
-La apertura de otra pestaña desde la extensión no produjo eventos reales de
-`blur`/`visibilitychange` en la pestaña automatizada. Por eso no se declara validado
-ese recorrido físico ni el cambio de aplicación; sus reglas siguen cubiertas por
-las pruebas deterministas de ciclo de vida. Tampoco se validaron autenticadores
-físicos, permisos/firma nativos reales, login real de Privy, Safari/iPhone, Android
-o PWA instalada. Permanecen pendientes junto con OTP y el despliegue de prueba.
+El panel prepara token y opciones WebAuthn antes del toque. El manejador llama al
+autenticador antes de cualquier await o petición. Opciones solo en memoria, ligadas a
+token de sesión y generación, se invalidan por uso, cancelación, bloqueo, cambio de
+identidad o vencimiento. Se muestran preparación, cancelación, vencimiento e
+incompatibilidad; PIN y recuperación siguen disponibles. No hay bypass por user-agent.
+El service worker sigue almacenando únicamente `/offline.html`; sus pruebas excluyen
+explícitamente `/security/*` y `/.netlify/functions/security/*`.
+
+## Configuración, staging y piloto
+
+1. Node 22 o posterior (build y Functions declarados en `netlify.toml`). Ejecutar `npm ci`.
+2. Configurar por entorno, solo servidor: `SECURITY_PIN_PEPPER`,
+   `SECURITY_RECOVERY_PEPPER` independientes y aleatorios (mínimo 32 bytes),
+   `RESEND_API_KEY`, `SECURITY_RECOVERY_FROM` con dominio verificado en Resend.
+   No usar `VITE_`. Mantener los valores en el gestor de secretos, fuera de Git/logs.
+3. Configurar `SECURITY_RP_ID` sin esquema y `SECURITY_ORIGINS` con orígenes HTTPS
+   exactos, sin rutas. Registrar staging también en los dominios de Privy.
+   Usar bases, peppers, remitentes y RP separados. Solo localhost permite HTTP.
+4. Con credenciales de staging, ejecutar `node --env-file=.env scripts/migrate-security.js`.
+   Aplica 20261021 y 20261022 en orden. Las pruebas ejecutan la migración nueva dos
+   veces sobre factores/contactos existentes y verifican igualdad de datos.
+5. Verificar la configuración real de la IP del edge, Resend, Privy y runtime antes
+   de habilitar al piloto. Disponibilidad en `status` solo prueba presencia de configuración;
+   no demuestra que Resend haya verificado el dominio ni que entregue mensajes.
+6. Para piloto: `SECURITY_ENFORCED=false` y `SECURITY_PILOT_USER_IDS` con DID exactos
+   separados por coma. El servidor y el gate exigen seguridad a esos DID. Fuera del
+   piloto se conserva el acceso Privy anterior. Ausencia de `SECURITY_ENFORCED` o `true`
+   exige seguridad a todos. No ampliar mientras falte recuperación real o dispositivos.
+7. Registrar el artefacto previo compatible para rollback manual del código. Conservar
+   tablas, factores, contactos y configuración. No ejecutar migraciones destructivas,
+   no desactivar globalmente seguridad como rollback automático.
+
+## Verificación reproducible
+
+- `npm test`: pruebas de SQL real con PGlite, firmas WebAuthn reales, reloj determinista
+  y componentes React con efectos. Los proveedores de correo y Privy están simulados.
+- `npm run build`, `npm run functions:check`, `npm run deps:check`.
+- `npm run test:security:browser`: Chrome instalado, perfil temporal y viewport 390×844;
+  inicia fixture local, prueba alta, diez desbloqueos, cancelación/reintento, `pagehide`
+  e identidad. `SECURITY_TEST_BROWSER=msedge` permite usar Edge. No descarga navegadores.
+- `npm run test:security:baseline`: copia aislada de 1734064 bajo `.netlify/`, conserva
+  las pruebas y comprueba fallos por aserción para límites, foco, Safari y recuperación.
+- `node scripts/security-browser-fixture.js`: revisión manual local en puerto 5187.
+  Es un servidor de pruebas que no carga `.env`; muestra OTP de fixtures en su buzón
+  local. Nunca publicar este servidor ni usarlo con cuentas reales.
+
+Evidencia y matriz de aceptación: [APP_SECURITY_VALIDATION.md](APP_SECURITY_VALIDATION.md).
+
+Referencias: [Resend HTTP](https://resend.com/docs/api-reference/emails/send-email),
+[restricciones Safari](https://simplewebauthn.dev/docs/advanced/browser-quirks),
+[Playwright con Chrome instalado](https://playwright.dev/docs/api/class-browsertype#browser-type-launch-option-channel).

@@ -1,0 +1,20 @@
+.mp-security{min-height:100dvh;box-sizing:border-box;background:#F7F7F9;color:#16161A;display:grid;place-items:center;padding:28px 20px;font-family:Poppins,sans-serif}
+.mp-security section{width:100%;max-width:380px;text-align:center}
+.mp-security h1{font-size:25px;font-weight:500;margin:28px 0 12px}
+.mp-security h2{font-size:20px;font-weight:500}
+.mp-security p{line-height:1.6;font-size:14px}
+.mp-security button{display:block;width:100%;padding:15px 18px;border:0;border-radius:18px;background:#fe6c1c;color:#fff;font:inherit;font-weight:500;margin:12px 0;cursor:pointer}
+.mp-security button:disabled{opacity:.5;cursor:default}
+.mp-security .secondary{background:#FFEADF;color:#16161A}
+.mp-security .hint{color:#555560;font-size:12px}
+.mp-security input{box-sizing:border-box;width:100%;font:inherit;padding:10px;text-align:center;border:1px solid #7A7A85;border-radius:12px;background:white;color:#16161A}
+.mp-security input[type=password]{letter-spacing:16px;font-size:24px}
+.mp-security-dots{display:flex;justify-content:center;gap:22px;font-size:24px;margin:10px}
+.mp-security-keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.mp-security-keypad button{margin:0;background:white;color:#16161A;font-size:20px}
+.mp-security [role=alert]{color:#a52d25;min-height:20px}
+.mp-security-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.mp-security-logout{display:block;margin:0 auto 25px;padding:12px 20px;background:white;border:1px solid #ECECF0;border-radius:18px;font:inherit}
+.mp-security-cover{position:fixed;inset:0;z-index:2147483647;background:#F7F7F9;display:grid;place-items:center;font-family:Poppins,sans-serif;color:#16161A}
+.mp-security-covered .mp-security-private{visibility:hidden}
+.mp-security-covered::after{content:'MidatoPay';position:fixed;inset:0;background:#F7F7F9;z-index:2147483647;display:grid;place-items:center;font-family:Poppins,sans-serif}

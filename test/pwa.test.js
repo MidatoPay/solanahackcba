@@ -85,6 +85,10 @@ test('worker leaves APIs, RPC, authentication, payment POSTs and bundles entirel
   for (const [url, method, mode] of [
     ['/charges', 'POST', 'cors'], ['/charges', 'GET', 'navigate'], ['/wallet', 'GET', 'cors'],
     ['/rpc', 'POST', 'cors'], ['/merchant-profile', 'GET', 'navigate'],
+    ['/security/status','GET','navigate'], ['/security/renew','POST','cors'],
+    ['/security/recovery/start','POST','cors'], ['/security/recovery/verify','POST','cors'],
+    ['/security/recovery-email/start','POST','cors'], ['/security/recovery-email/verify','POST','cors'],
+    ['/.netlify/functions/security/status','GET','navigate'], ['/security/passkey/options','POST','cors'],
     ['/webhooks/mercadopago', 'POST', 'cors'], ['/transfers', 'POST', 'cors'],
     ['https://auth.privy.io/', 'GET', 'navigate'], ['/assets/app.js', 'GET', 'cors'],
   ]) handlers.fetch({ request: { url: new URL(url, 'https://app.example').href, method, mode },

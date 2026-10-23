@@ -1,3 +1,4 @@
+import {securityFetch as fetch} from './securitySession.js';
 import { SOLANA } from "./chain.js";
 export { canStartNewCharge } from "./chargeStatus.js";
 const storageKey = (userId) => `mp_charge_${SOLANA.cluster}_${userId}`;

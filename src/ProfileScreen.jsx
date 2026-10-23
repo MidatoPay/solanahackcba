@@ -5,6 +5,10 @@ import BusinessProfile from "./BusinessProfile.jsx";
 import TreasuryWalletExport from "./TreasuryWalletExport.jsx";
 import LanguageSelect from "./LanguageSelect.jsx";
 import InstallApp from "./InstallApp.jsx";
+import {usePrivy} from '@privy-io/react-auth';
+import {SecurityPanel} from './SecurityGate.jsx';
+import {acceptUnlock,requestSecurityLock} from './securitySession.js';
+import {securityCopy} from './securityCopy.js';
 
 // Perfil: identidad, negocio, cuenta, administración (solo admins) y cierre de sesión.
 const C = { bg: "#F7F7F9", card: "#FFFFFF", ink: "#16161A", mut: "#7A7A85", line: "#ECECF0", accent: "#fe6c1c", orangeSoft: "#FFEADF", green: "#21B95B", red: "#E4483D", redSoft: "#FDECEA" };
@@ -94,11 +98,15 @@ function LogoutSheet({ onConfirm, onClose }) {
 
 export default function ProfileScreen({ email, address, nombre, onLogout, goReports, privyId, merchantProfile, treasuryExportAccess }) {
   const { t, lang } = useLanguage();
+  const {getAccessToken}=usePrivy();
+  const [security,setSecurity]=useState(false);
+  const copySecurity=securityCopy[lang] || securityCopy.en;
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [copied, copy] = useCopied();
   const showAdmin = Boolean(goReports) || treasuryExportAccess?.authorized === true;
   const initial = (nombre || "?").trim().charAt(0).toUpperCase() || "?";
 
+  if(security)return <SecurityPanel manage getToken={getAccessToken} onUnlocked={acceptUnlock} onClose={()=>setSecurity(false)} />;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <h2 style={{ fontSize: 24, fontWeight: 500, color: C.ink, margin: 0, letterSpacing: -0.3 }}>{t("mas.title")}</h2>
@@ -122,6 +130,8 @@ export default function ProfileScreen({ email, address, nombre, onLogout, goRepo
       </Section>
 
       <Section title={t("mas.sectionAccount")}>
+        <SettingsRow icon={<IconGlobe />} title={copySecurity.title} onClick={()=>setSecurity(true)} />
+        <SettingsRow icon={<IconLogout />} title={copySecurity.lock} onClick={requestSecurityLock} />
         <SettingsRow icon={<IconExplorer />} title={t("mas.explorerTitle")} sub={t("mas.explorerSub")} href={explorerAddressUrl(address)} />
         {SOLANA.cluster === "devnet" && (
           <>

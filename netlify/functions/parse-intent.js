@@ -1,20 +1,15 @@
+import { authenticatePayment } from './lib/paymentRuntime.js';
 // Proxy server-side a Anthropic para el parser de voz.
 // ANTHROPIC_API_KEY vive solo acá (sin prefijo VITE_).
 
 import { PrivyClient } from "@privy-io/server-auth";
 
-let privy;
-function getPrivy() {
-  if (!privy) {
-    privy = new PrivyClient(process.env.VITE_PRIVY_APP_ID, process.env.PRIVY_APP_SECRET);
-  }
-  return privy;
-}
+
 
 function json(statusCode, body) {
   return {
     statusCode,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
     body: JSON.stringify(body),
   };
 }
@@ -26,15 +21,8 @@ function anthropicKey() {
 }
 
 async function authenticate(event) {
-  const authHeader = event.headers?.authorization || event.headers?.Authorization || "";
-  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-  if (!token) return null;
-  try {
-    const claims = await getPrivy().verifyAuthToken(token);
-    return claims.userId;
-  } catch {
-    return null;
-  }
+  try { return await authenticatePayment(event); }
+  catch { return null; }
 }
 
 function buildPrompt(text, lang, aliases) {

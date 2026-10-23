@@ -1,3 +1,4 @@
+import {securityFetch as fetch} from './securitySession.js';
 import { SOLANA } from "./chain.js";
 import { deliveryPhase, paymentReceived } from "./chargeStatus.js";
 // Cliente HTTP del historial de transacciones, con cache stale-while-revalidate

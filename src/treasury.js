@@ -1,3 +1,4 @@
+import {securityFetch as fetch} from './securitySession.js';
 /**
  * Cliente HTTP de la recaudadora.
  * La secret key vive solo en la Netlify Function (`TREASURY_SECRET_KEY`).

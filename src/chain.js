@@ -1,6 +1,7 @@
 import { createSolanaRpc, createSolanaRpcFromTransport, createDefaultRpcTransport, createSolanaRpcSubscriptions } from "@solana/kit";
 import { NETWORK } from "./network.js";
 import { rpcAccessToken } from './rpcSession.js';
+import {securityHeaders,securitySnapshot} from './securitySession.js';
 
 // Lecturas van por el proxy local de Vite/Netlify (ver vite.config.js) para
 // evitar CORS del navegador contra el RPC de Solana.
@@ -36,12 +37,18 @@ export function createAppRpc() {
   if(typeof window==='undefined')return createSolanaRpc(RPC_PROXY);
   let previousToken,transport;
   return createSolanaRpcFromTransport(async request=>{
+    if(!securitySnapshot().credential)throw new Error('app_locked');
+    if(typeof document!=='undefined' && (document.visibilityState!=='visible' || !document.hasFocus()))throw new Error('app_inactive');
+    const epoch=securitySnapshot().epoch;
     const token=await rpcAccessToken();
-    if(previousToken!==token) {
-      previousToken=token;
-      transport=createDefaultRpcTransport({url:RPC_PROXY,headers:{Authorization:`Bearer ${token}`}});
+    if(securitySnapshot().epoch!==epoch)throw new Error('app_locked');
+    if(previousToken!==token+':'+epoch) {
+      previousToken=token+':'+epoch;
+      transport=createDefaultRpcTransport({url:RPC_PROXY,headers:{Authorization:`Bearer ${token}`,...securityHeaders()}});
     }
-    return transport(request);
+    const result=await transport(request);
+    if(securitySnapshot().epoch!==epoch)throw new Error('app_locked');
+    return result;
   });
 }
 

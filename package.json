@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:full": "netlify dev --offline",
+    "dev:full": "node scripts/dev-full.js",
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test --test-concurrency=1 test/*.test.js",
@@ -15,11 +15,16 @@
     "payments:env:production": "node scripts/prepare-payments-env.js .env.production",
     "payments:check": "node --env-file=.env scripts/check-payments-config.js",
     "db:check:payments": "node --env-file=.env scripts/check-payments-database.js",
-    "db:migrate:payments": "node --env-file=.env scripts/migrate-payments.js"
+    "db:migrate:payments": "node --env-file=.env scripts/migrate-payments.js",
+    "test:security:browser": "node scripts/test-security-browser.js",
+    "test:security:baseline": "node scripts/prove-security-regressions.js",
+    "db:migrate:security": "node --env-file=.env scripts/migrate-security.js"
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.36.1",
     "@privy-io/server-auth": "^1.32.5",
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.0.3",
     "@solana-program/memo": "^0.13.1",
     "@solana-program/system": "^0.14.1",
     "@solana-program/token": "^0.16.1",
@@ -38,6 +43,7 @@
     "@electric-sql/pglite": "^0.5.9",
     "@vitejs/plugin-react": "^6.0.5",
     "netlify-cli": "^27.1.0",
+    "playwright-core": "^1.64.1",
     "react-test-renderer": "18.3.1",
     "vite": "^8.2.0"
   },
